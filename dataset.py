@@ -13,6 +13,13 @@ class ML1mDataset(Dataset):
         self.test_pos = torch.load(CURRENT_PATH / 'data' / 'ml-1m-test-pos.pt')
         self.test_neg = torch.load(CURRENT_PATH / 'data' / 'ml-1m-test-neg.pt')
 
+        test_items = []
+        for u in range(self.n_users):
+            items = torch.cat((self.test_pos[u, 1].view(1), self.test_neg[u]))
+            test_items.append(items)
+
+        self.test_items = torch.vstack(test_items)
+
     def __len__(self):
         return self.n_users
 
