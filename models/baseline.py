@@ -1,17 +1,18 @@
-import torch
+from torch import nn
 
 
-class Popularity:
+class Popularity(nn.Module):
 
     def __init__(self):
+        super(Popularity, self).__init__()
         return
 
     def fit(self, ds):
         pass
 
-    def predict(self, ds):
-        score = ds.train.to_dense().sum(dim=0)
-        test_items = ds.test_items
+    def forward(self, ds):
+        score = ds.train_ds.train.to_dense().sum(dim=0)
+        test_items = ds.test_ds.test_items
 
         test_scores = []
         for u in range(ds.n_users):
