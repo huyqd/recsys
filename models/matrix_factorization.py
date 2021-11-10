@@ -3,6 +3,7 @@ import scipy.sparse as sparse
 import torch
 from torch import nn
 import numpy as np
+import pytorch_lightning as pl
 
 
 class AlsMF(nn.Module):
@@ -38,7 +39,7 @@ class AlsMF(nn.Module):
 class TorchMF(nn.Module):
     """A matrix factorization model trained using SGD and negative sampling."""
 
-    def __init__(self, n_users, n_items, embedding_dim, reg):
+    def __init__(self, n_users, n_items, embedding_dim):
         super(TorchMF, self).__init__()
         self.user_embedding = nn.Embedding(
             num_embeddings=n_users, embedding_dim=embedding_dim
@@ -46,18 +47,90 @@ class TorchMF(nn.Module):
         self.item_embedding = nn.Embedding(
             num_embeddings=n_items, embedding_dim=embedding_dim
         )
-        self.user_bias = nn.Parameter(torch.zeros((n_users, 1)))
-        self.item_bias = nn.Parameter(torch.zeros((n_items, 1)))
+        self.user_bias = nn.Parameter(torch.zeros((n_users)))
+        self.item_bias = nn.Parameter(torch.zeros((n_items)))
         self.bias = nn.Parameter(torch.Tensor([0]))
-        self.reg = reg
 
     def forward(self, users, items):
         return (
                 self.bias +
                 self.user_bias[users] +
                 self.item_bias[items] +
-                (self.user_embedding[users].mul(self.item_embedding[items])).sum(dim=1)
+                (self.user_embedding(users).mul(self.item_embedding(items))).sum(dim=1)
         )
+
+
+class LightningMF(pl.LightningModule):
+    def __init__(self, model):
+        super().__init__()
+        self.model = model
+
+    def forward(self, users, items):
+        return self.model(users, items)
+
+    def training_step(self, batch, batch_idx):
+        train_pos, train_score = batch
+        train_users, train_pos_items = train_pos[:, 0], train_pos[:, 1]
+
+        n_neg_items = 5
+        train_neg_items = torch.multinomial(train_score, n_neg_items)
+        train_items = torch.cat((train_pos_items.view(-1, 1), train_neg_items), dim=1)
+
+        train_labels = torch.zeros(train_items.shape)
+        train_labels[:, 0] += 1
+        train_users = train_users.view(-1, 1).repeat(1, train_items.shape[1])
+
+        train_users = train_users.view(-1, 1).squeeze()
+        train_items = train_items.view(-1, 1).squeeze()
+        train_labels = train_labels.view(-1, 1).squeeze()
+
+        logits = self(train_users, train_items)
+        loss = self.loss_fn(logits, train_labels)
+
+        return {
+            "loss": loss,
+            "logits": logits.detach(),
+        }
+
+    def training_epoch_end(self, outputs):
+        # This function recevies as parameters the output from "training_step()"
+        # Outputs is a list which contains a dictionary like:
+        # [{'pred':x,'target':x,'loss':x}, {'pred':x,'target':x,'loss':x}, ...]
+        pass
+
+    def validation_step(self, batch, batch_idx):
+        users, items, labels = batch
+        logits = self(users, items)
+        loss = self.loss_fn(logits, labels)
+
+        return {
+            "loss": loss.detach(),
+            "logits": logits.detach(),
+            "batch_length": labels.shape[0],
+        }
+
+    def validation_epoch_end(self, outputs):
+        loss = [o["loss"].mul(o["batch_length"]) for o in outputs]
+        length = [o["batch_length"] for o in outputs]
+
+        val_loss = sum(loss) / sum(length)
+        self.log("Val Loss", val_loss, prog_bar=True)
+
+        scores = [o["logits"] for o in outputs]
+        scores = torch.cat(scores).squeeze().numpy()
+
+        scores = scores.reshape(-1, n_items)
+        apak = get_apak(scores, test)
+
+        # Save the metric
+        self.log("Val Apak", apak, prog_bar=True)
+
+    def configure_optimizers(self):
+        optimizer = torch.optim.SGD(self.model.parameters(), lr=0.01)
+        return optimizer
+
+    def loss_fn(self, logits, labels):
+        return nn.BCEWithLogitsLoss()(logits, labels)
 
 
 """
