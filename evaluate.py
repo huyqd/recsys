@@ -8,7 +8,7 @@ from utils import LightningMF
 if __name__ == '__main__':
     k = 10
     embedding_dim = 20
-    model_name = "GMF"
+    model_name = "AlsMF"
 
     ds = ML1mDataset()
     n_users, n_items = ds.train_ds.n_users, ds.train_ds.n_items
@@ -19,6 +19,12 @@ if __name__ == '__main__':
         scores = model(ds)
         labels = ds.test_ds.test_pos[:, [1]]
         ncdg, apak, hr = get_eval_metrics(scores, labels, k)
+        metrics = {
+            'ncdg': ncdg,
+            'apak': apak,
+            'hr': hr,
+        }
+        print(metrics)
     else:
         model = MODELS[model_name](n_users, n_items, embedding_dim)
         recommender = LightningMF(model)
