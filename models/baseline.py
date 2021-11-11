@@ -3,7 +3,8 @@ from torch import nn
 
 class Popularity(nn.Module):
 
-    def __init__(self):
+    def __init__(self, embedding_dim):
+        del embedding_dim
         super(Popularity, self).__init__()
         return
 
