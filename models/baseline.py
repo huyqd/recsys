@@ -14,9 +14,10 @@ class Popularity(nn.Module):
     def forward(self, ds):
         score = ds.train_ds.train.to_dense().sum(dim=0)
         test_items = ds.test_ds.test_items
+        n_users = ds.test_ds.n_users
 
         test_scores = []
-        for u in range(ds.n_users):
+        for u in range(n_users):
             items = test_items[u]
             item_scores = score[items]
             item_scores = dict(zip(items.tolist(), item_scores.tolist()))
