@@ -2,7 +2,7 @@ import pytorch_lightning as pl
 import torch
 from torch import nn
 
-from recsys.metrics import get_eval_metrics
+from metrics import get_eval_metrics
 
 
 class LightningMF(pl.LightningModule):

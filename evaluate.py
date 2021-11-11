@@ -3,12 +3,12 @@ import pytorch_lightning as pl
 from dataset import ML1mDataset
 from metrics import get_eval_metrics
 from models import MODELS
-from recsys.utils import LightningMF
+from utils import LightningMF
 
 if __name__ == '__main__':
     k = 10
     embedding_dim = 20
-    model_name = "TorchMF"
+    model_name = "GMF"
 
     ds = ML1mDataset()
     n_users, n_items = ds.train_ds.n_users, ds.train_ds.n_items
@@ -25,7 +25,7 @@ if __name__ == '__main__':
         trainer = pl.Trainer(
             max_epochs=200,
             logger=False,
-            check_val_every_n_epoch=1,
+            check_val_every_n_epoch=10,
             checkpoint_callback=False,
             num_sanity_val_steps=0,
             gradient_clip_val=1,
