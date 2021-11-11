@@ -1,13 +1,14 @@
+import pytorch_lightning as pl
+
 from dataset import ML1mDataset
 from metrics import get_eval_metrics
-from models import MODELS, LIGHTNING_UTILS
-import pytorch_lightning as pl
+from models import MODELS
+from recsys.utils import LightningMF
 
 if __name__ == '__main__':
     k = 10
     embedding_dim = 20
     model_name = "TorchMF"
-    lightning_name = "LightningMF"
 
     ds = ML1mDataset()
     n_users, n_items = ds.train_ds.n_users, ds.train_ds.n_items
@@ -20,11 +21,11 @@ if __name__ == '__main__':
         ncdg, apak, hr = get_eval_metrics(scores, labels, k)
     else:
         model = MODELS[model_name](n_users, n_items, embedding_dim)
-        recommender = LIGHTNING_UTILS[lightning_name](model)
+        recommender = LightningMF(model)
         trainer = pl.Trainer(
             max_epochs=200,
             logger=False,
-            check_val_every_n_epoch=10,
+            check_val_every_n_epoch=1,
             checkpoint_callback=False,
             num_sanity_val_steps=0,
             gradient_clip_val=1,
