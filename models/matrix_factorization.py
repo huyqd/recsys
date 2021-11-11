@@ -106,22 +106,23 @@ class LightningMF(pl.LightningModule):
         item_scores = [dict(zip(item.tolist(), score.tolist())) for item, score in zip(items, logits)]
         ncdg, apak, hr = get_eval_metrics(item_scores, item_true)
         metrics = {
-            'ncdg': round(ncdg, 2),
-            'apak': round(apak, 2),
-            'hr': round(hr, 2),
+            'loss': loss,
+            'ncdg': ncdg,
+            'apak': apak,
+            'hr': hr,
         }
-        self.log("Val Metrics", metrics, prog_bar=True, on_epoch=True)
+        self.log("Val Metrics", metrics, prog_bar=True)
 
         return {
-            "loss": loss.detach(),
-            "logits": logits.detach(),
+            "loss": loss,
+            "logits": logits,
         }
 
     def validation_epoch_end(self, outputs):
         pass
 
     def configure_optimizers(self):
-        optimizer = torch.optim.SGD(self.model.parameters(), lr=0.01)
+        optimizer = torch.optim.SGD(self.model.parameters(), lr=0.05)
         return optimizer
 
     def loss_fn(self, logits, labels):

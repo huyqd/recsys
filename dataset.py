@@ -48,5 +48,5 @@ class ML1mDataset:
     def __init__(self):
         self.train_ds = TrainDataset()
         self.test_ds = TestDataset()
-        self.train_dl = DataLoader(self.train_ds, batch_size=64, shuffle=True)
-        self.test_dl = DataLoader(self.test_ds, batch_size=128, shuffle=False)
+        self.train_dl = DataLoader(self.train_ds, batch_size=64, shuffle=True, num_workers=8)
+        self.test_dl = DataLoader(self.test_ds, batch_size=128, shuffle=False, num_workers=8)

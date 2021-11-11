@@ -19,9 +19,9 @@ if __name__ == '__main__':
     # ncdg, apak, hr = get_eval_metrics(scores, labels, k)
     recommender = LIGHTNING_UTILS[lightning_name](model)
     trainer = pl.Trainer(
-        max_epochs=100,
+        max_epochs=200,
         logger=False,
-        check_val_every_n_epoch=20,
+        check_val_every_n_epoch=10,
         checkpoint_callback=False,
         num_sanity_val_steps=0,
         gradient_clip_val=1,
