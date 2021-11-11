@@ -23,13 +23,12 @@ def get_hr(true, pred):
     return hr
 
 
-def get_eval_metrics(scores, ds, k=10):
+def get_eval_metrics(scores, true, k=10):
     test_items = [torch.LongTensor(list(item_scores.keys())) for item_scores in scores]
     test_scores = [torch.Tensor(list(item_scores.values())) for item_scores in scores]
     topk_indices = [s.topk(k).indices for s in test_scores]
     topk_items = [item[idx] for item, idx in zip(test_items, topk_indices)]
     pred = torch.vstack(topk_items)
-    true = ds.test_ds.test_pos[:, [1]]
     ncdg = get_ncdg(true, pred)
     apak = get_apak(true, pred)
     hr = get_hr(true, pred)

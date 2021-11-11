@@ -4,6 +4,7 @@ import torch
 from torch import nn
 import numpy as np
 import pytorch_lightning as pl
+from metrics import get_eval_metrics
 
 
 class AlsMF(nn.Module):
@@ -56,7 +57,7 @@ class TorchMF(nn.Module):
                 self.bias +
                 self.user_bias[users] +
                 self.item_bias[items] +
-                (self.user_embedding(users).mul(self.item_embedding(items))).sum(dim=1)
+                (self.user_embedding(users).mul(self.item_embedding(items))).sum(dim=-1)
         )
 
 
@@ -69,23 +70,19 @@ class LightningMF(pl.LightningModule):
         return self.model(users, items)
 
     def training_step(self, batch, batch_idx):
-        train_pos, train_score = batch
-        train_users, train_pos_items = train_pos[:, 0], train_pos[:, 1]
+        pos, score = batch
+        users, pos_items = pos[:, 0], pos[:, 1]
 
         n_neg_items = 5
-        train_neg_items = torch.multinomial(train_score, n_neg_items)
-        train_items = torch.cat((train_pos_items.view(-1, 1), train_neg_items), dim=1)
+        neg_items = torch.multinomial(score, n_neg_items)
+        items = torch.cat((pos_items.view(-1, 1), neg_items), dim=1)
 
-        train_labels = torch.zeros(train_items.shape)
-        train_labels[:, 0] += 1
-        train_users = train_users.view(-1, 1).repeat(1, train_items.shape[1])
+        labels = torch.zeros(items.shape)
+        labels[:, 0] += 1
+        users = users.view(-1, 1).repeat(1, items.shape[1])
 
-        train_users = train_users.view(-1, 1).squeeze()
-        train_items = train_items.view(-1, 1).squeeze()
-        train_labels = train_labels.view(-1, 1).squeeze()
-
-        logits = self(train_users, train_items)
-        loss = self.loss_fn(logits, train_labels)
+        logits = self(users, items)
+        loss = self.loss_fn(logits, labels)
 
         return {
             "loss": loss,
@@ -99,31 +96,29 @@ class LightningMF(pl.LightningModule):
         pass
 
     def validation_step(self, batch, batch_idx):
-        users, items, labels = batch
+        pos, items, labels = batch
+        users = pos[:, 0].view(-1, 1).repeat(1, items.shape[1])
+
         logits = self(users, items)
         loss = self.loss_fn(logits, labels)
+
+        item_true = pos[:, 1].view(-1, 1)
+        item_scores = [dict(zip(item.tolist(), score.tolist())) for item, score in zip(items, logits)]
+        ncdg, apak, hr = get_eval_metrics(item_scores, item_true)
+        metrics = {
+            'ncdg': round(ncdg, 2),
+            'apak': round(apak, 2),
+            'hr': round(hr, 2),
+        }
+        self.log("Val Metrics", metrics, prog_bar=True, on_epoch=True)
 
         return {
             "loss": loss.detach(),
             "logits": logits.detach(),
-            "batch_length": labels.shape[0],
         }
 
     def validation_epoch_end(self, outputs):
-        loss = [o["loss"].mul(o["batch_length"]) for o in outputs]
-        length = [o["batch_length"] for o in outputs]
-
-        val_loss = sum(loss) / sum(length)
-        self.log("Val Loss", val_loss, prog_bar=True)
-
-        scores = [o["logits"] for o in outputs]
-        scores = torch.cat(scores).squeeze().numpy()
-
-        scores = scores.reshape(-1, n_items)
-        apak = get_apak(scores, test)
-
-        # Save the metric
-        self.log("Val Apak", apak, prog_bar=True)
+        pass
 
     def configure_optimizers(self):
         optimizer = torch.optim.SGD(self.model.parameters(), lr=0.01)

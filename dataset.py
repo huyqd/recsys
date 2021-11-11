@@ -34,12 +34,14 @@ class TestDataset(Dataset):
             test_items.append(items)
 
         self.test_items = torch.vstack(test_items)
+        self.test_labels = torch.zeros(self.test_items.shape)
+        self.test_labels[:, 0] += 1
 
     def __len__(self):
         return self.n_users
 
     def __getitem__(self, idx):
-        return self.test_items[idx], self.test_pos[idx]
+        return self.test_pos[idx], self.test_items[idx], self.test_labels[idx]
 
 
 class ML1mDataset:
