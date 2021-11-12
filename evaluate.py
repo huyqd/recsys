@@ -3,7 +3,7 @@ import pytorch_lightning as pl
 from dataset import ML1mDataset
 from metrics import get_eval_metrics
 from models import MODELS
-from utils import LightningMF
+from utils import Engine
 
 if __name__ == '__main__':
     k = 10
@@ -28,7 +28,7 @@ if __name__ == '__main__':
     else:
         model = MODELS[model_name](n_users, n_items, embedding_dim)
         n_negative_samples = 4
-        recommender = LightningMF(model, n_negative_samples)
+        recommender = Engine(model, n_negative_samples)
         trainer = pl.Trainer(
             max_epochs=200,
             logger=False,

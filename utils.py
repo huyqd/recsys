@@ -5,7 +5,7 @@ from torch import nn
 from metrics import get_eval_metrics
 
 
-class LightningMF(pl.LightningModule):
+class Engine(pl.LightningModule):
     def __init__(self, model, n_negative_samples, k=10):
         super().__init__()
         self.model = model
