@@ -6,9 +6,11 @@ from metrics import get_eval_metrics
 
 
 class LightningMF(pl.LightningModule):
-    def __init__(self, model):
+    def __init__(self, model, n_negative_samples, k=10):
         super().__init__()
         self.model = model
+        self.n_negative_samples = n_negative_samples
+        self.k = k
 
     def forward(self, users, items):
         return self.model(users, items)
@@ -17,8 +19,7 @@ class LightningMF(pl.LightningModule):
         pos, score = batch
         users, pos_items = pos[:, 0], pos[:, 1]
 
-        n_neg_items = 5
-        neg_items = torch.multinomial(score, n_neg_items)
+        neg_items = torch.multinomial(score, self.n_negative_samples)
         items = torch.cat((pos_items.view(-1, 1), neg_items), dim=1)
 
         labels = torch.zeros(items.shape)
@@ -59,7 +60,7 @@ class LightningMF(pl.LightningModule):
         logits = logits.view(-1, n_items)
         item_true = pos[:, 1].view(-1, 1)
         item_scores = [dict(zip(item.tolist(), score.tolist())) for item, score in zip(items, logits)]
-        ncdg, apak, hr = get_eval_metrics(item_scores, item_true)
+        ncdg, apak, hr = get_eval_metrics(item_scores, item_true, self.k)
         metrics = {
             'loss': loss.item(),
             'ncdg': ncdg,

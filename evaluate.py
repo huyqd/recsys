@@ -8,7 +8,7 @@ from utils import LightningMF
 if __name__ == '__main__':
     k = 10
     embedding_dim = 20
-    model_name = "AlsMF"
+    model_name = "Popularity"
 
     ds = ML1mDataset()
     n_users, n_items = ds.train_ds.n_users, ds.train_ds.n_items
@@ -27,7 +27,8 @@ if __name__ == '__main__':
         print(metrics)
     else:
         model = MODELS[model_name](n_users, n_items, embedding_dim)
-        recommender = LightningMF(model)
+        n_negative_samples = 4
+        recommender = LightningMF(model, n_negative_samples)
         trainer = pl.Trainer(
             max_epochs=200,
             logger=False,
