@@ -8,9 +8,9 @@ from utils import Engine
 if __name__ == '__main__':
     k = 10
     embedding_dim = 20
-    model_name = "Popularity"
+    model_name = "MLP"
 
-    ds = ML1mDataset()
+    ds = ML1mDataset(n_workers=8)
     n_users, n_items = ds.train_ds.n_users, ds.train_ds.n_items
 
     if model_name in ("Popularity", "AlsMF"):
@@ -32,7 +32,7 @@ if __name__ == '__main__':
         trainer = pl.Trainer(
             max_epochs=200,
             logger=False,
-            check_val_every_n_epoch=10,
+            check_val_every_n_epoch=1,
             checkpoint_callback=False,
             num_sanity_val_steps=0,
             gradient_clip_val=1,

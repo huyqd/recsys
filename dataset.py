@@ -16,7 +16,7 @@ class TrainDataset(Dataset):
         self.score[self.train_pos[:, 0], self.train_pos[:, 1]] = 0
 
     def __len__(self):
-        return self.n_users
+        return self.train_pos.shape[0]
 
     def __getitem__(self, idx):
         return self.train_pos[idx], self.score[self.train_pos[idx][0]]
@@ -45,8 +45,8 @@ class TestDataset(Dataset):
 
 
 class ML1mDataset:
-    def __init__(self):
+    def __init__(self, batch_size=128, n_workers=8):
         self.train_ds = TrainDataset()
         self.test_ds = TestDataset()
-        self.train_dl = DataLoader(self.train_ds, batch_size=64, shuffle=True, num_workers=8)
-        self.test_dl = DataLoader(self.test_ds, batch_size=128, shuffle=False, num_workers=8)
+        self.train_dl = DataLoader(self.train_ds, batch_size=batch_size, shuffle=True, num_workers=n_workers)
+        self.test_dl = DataLoader(self.test_ds, batch_size=batch_size * 2, shuffle=False, num_workers=n_workers)

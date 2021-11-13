@@ -81,7 +81,7 @@ class Engine(pl.LightningModule):
     #     optimizer = torch.optim.SGD(self.model.parameters(), lr=0.05)
     #     return optimizer
     def configure_optimizers(self):
-        optimizer = torch.optim.AdamW(self.parameters(), lr=0.005)
+        optimizer = torch.optim.AdamW(self.parameters(), lr=0.001)
         return optimizer
 
     def loss_fn(self, logits, labels):
