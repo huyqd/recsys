@@ -9,7 +9,7 @@ if __name__ == '__main__':
     k = 10
     embedding_dim = 32
     n_negative_samples = 4
-    model = TorchMF
+    model = VanillaMF
 
     ds = ML1mDataset(n_workers=8)
     n_users, n_items = ds.train_ds.n_users, ds.train_ds.n_items

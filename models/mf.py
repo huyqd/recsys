@@ -34,11 +34,27 @@ class AlsMF(nn.Module):
         return test_scores
 
 
-class TorchMF(nn.Module):
+class VanillaMF(nn.Module):
     """A matrix factorization model trained using SGD and negative sampling."""
 
     def __init__(self, n_users, n_items, embedding_dim):
-        super(TorchMF, self).__init__()
+        super(VanillaMF, self).__init__()
+        self.user_embedding = nn.Embedding(
+            num_embeddings=n_users, embedding_dim=embedding_dim
+        )
+        self.item_embedding = nn.Embedding(
+            num_embeddings=n_items, embedding_dim=embedding_dim
+        )
+
+    def forward(self, users, items):
+        return (self.user_embedding(users).mul(self.item_embedding(items))).sum(dim=-1)
+
+
+class BiasMF(nn.Module):
+    """A matrix factorization model trained using SGD and negative sampling."""
+
+    def __init__(self, n_users, n_items, embedding_dim):
+        super(BiasMF, self).__init__()
         self.user_embedding = nn.Embedding(
             num_embeddings=n_users, embedding_dim=embedding_dim
         )
