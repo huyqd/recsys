@@ -1,3 +1,5 @@
+import argparse
+
 import pytorch_lightning as pl
 
 from dataset import ML1mDataset
@@ -6,20 +8,25 @@ from models import *
 from utils import Engine
 
 if __name__ == '__main__':
-    k = 10
-    embedding_dim = 32
-    n_negative_samples = 4
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--k", type=int, default=10, help="k")
+    parser.add_argument("--embedding-dim", type=int, default=32, help="embedding-dim")
+    parser.add_argument("--n-negative-samples", type=int, default=4,
+                        help="number of negative examples for neg sampling")
+    parser.add_argument("--n-workers", type=int, default=8, help="number of workers for dataloader")
+    parser.add_argument("--seed", type=int, default=42, help="Seed")
+    args = parser.parse_args()
     model = VanillaMF
 
-    ds = ML1mDataset(n_workers=0)
+    ds = ML1mDataset(n_workers=args.n_workers)
     n_users, n_items = ds.train_ds.n_users, ds.train_ds.n_items
 
     if model in (Popularity, AlsMF):
-        model = model(embedding_dim)
+        model = model(args.embedding_dim)
         model.fit(ds)
         scores = model(ds)
         labels = ds.test_ds.test_pos[:, [1]]
-        ndcg, apak, hr = get_eval_metrics(scores, labels, k)
+        ndcg, apak, hr = get_eval_metrics(scores, labels, args.k)
         metrics = {
             'ndcg': ndcg,
             'apak': apak,
@@ -27,8 +34,9 @@ if __name__ == '__main__':
         }
         print(metrics)
     else:
-        model = model(n_users, n_items, embedding_dim)
-        recommender = Engine(model, n_negative_samples)
+        pl.seed_everything(args.seed)
+        model = model(n_users, n_items, args.embedding_dim)
+        recommender = Engine(model, args.n_negative_samples, k=args.k)
         # lr_monitor = pl.callbacks.LearningRateMonitor(logging_interval='step')
         trainer = pl.Trainer(
             max_epochs=10,
