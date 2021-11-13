@@ -2,19 +2,20 @@ import pytorch_lightning as pl
 
 from dataset import ML1mDataset
 from metrics import get_eval_metrics
-from models import MODELS
+from models import *
 from utils import Engine
 
 if __name__ == '__main__':
     k = 10
     embedding_dim = 32
-    model_name = "NeuMF"
+    n_negative_samples = 4
+    model = TorchMF
 
     ds = ML1mDataset(n_workers=8)
     n_users, n_items = ds.train_ds.n_users, ds.train_ds.n_items
 
-    if model_name in ("Popularity", "AlsMF"):
-        model = MODELS[model_name](embedding_dim)
+    if model in (Popularity, AlsMF):
+        model = model(embedding_dim)
         model.fit(ds)
         scores = model(ds)
         labels = ds.test_ds.test_pos[:, [1]]
@@ -26,8 +27,7 @@ if __name__ == '__main__':
         }
         print(metrics)
     else:
-        model = MODELS[model_name](n_users, n_items, embedding_dim)
-        n_negative_samples = 4
+        model = model(n_users, n_items, embedding_dim)
         recommender = Engine(model, n_negative_samples)
         trainer = pl.Trainer(
             max_epochs=200,
