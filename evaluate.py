@@ -7,8 +7,8 @@ from utils import Engine
 
 if __name__ == '__main__':
     k = 10
-    embedding_dim = 20
-    model_name = "MLP"
+    embedding_dim = 32
+    model_name = "NeuMF"
 
     ds = ML1mDataset(n_workers=8)
     n_users, n_items = ds.train_ds.n_users, ds.train_ds.n_items
@@ -18,9 +18,9 @@ if __name__ == '__main__':
         model.fit(ds)
         scores = model(ds)
         labels = ds.test_ds.test_pos[:, [1]]
-        ncdg, apak, hr = get_eval_metrics(scores, labels, k)
+        ndcg, apak, hr = get_eval_metrics(scores, labels, k)
         metrics = {
-            'ncdg': ncdg,
+            'ndcg': ndcg,
             'apak': apak,
             'hr': hr,
         }

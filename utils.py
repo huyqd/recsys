@@ -60,10 +60,10 @@ class Engine(pl.LightningModule):
         logits = logits.view(-1, n_items)
         item_true = pos[:, 1].view(-1, 1)
         item_scores = [dict(zip(item.tolist(), score.tolist())) for item, score in zip(items, logits)]
-        ncdg, apak, hr = get_eval_metrics(item_scores, item_true, self.k)
+        ndcg, apak, hr = get_eval_metrics(item_scores, item_true, self.k)
         metrics = {
             'loss': loss.item(),
-            'ncdg': ncdg,
+            'ndcg': ndcg,
             'apak': apak,
             'hr': hr,
         }
@@ -77,9 +77,6 @@ class Engine(pl.LightningModule):
     def validation_epoch_end(self, outputs):
         pass
 
-    # def configure_optimizers(self):
-    #     optimizer = torch.optim.SGD(self.model.parameters(), lr=0.05)
-    #     return optimizer
     def configure_optimizers(self):
         optimizer = torch.optim.AdamW(self.parameters(), lr=0.001)
         return optimizer

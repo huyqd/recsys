@@ -1,7 +1,7 @@
 from collections import OrderedDict
 from .baseline import Popularity
 from .matrix_factorization import AlsMF, TorchMF
-from .nn import GMF, MLP, NeuMF
+from .nn import *
 
 MODELS = OrderedDict([
     ("Popularity", Popularity),
