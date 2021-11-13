@@ -78,8 +78,21 @@ class Engine(pl.LightningModule):
         pass
 
     def configure_optimizers(self):
-        optimizer = torch.optim.AdamW(self.parameters(), lr=0.001)
-        return optimizer
+        optimizer = torch.optim.AdamW(self.parameters(), lr=0.05)
+        n_steps = self.trainer.max_epochs * len(self.train_dataloader())
+        lr_scheduler = torch.optim.lr_scheduler.LinearLR(optimizer,
+                                                         start_factor=1,
+                                                         end_factor=0,
+                                                         total_iters=n_steps, )
+        return {
+            "optimizer": optimizer,
+            "lr_scheduler": {
+                "scheduler": lr_scheduler,
+                "interval": "step",
+                "frequency": 1,
+                "name": "linear_lr_scheduler",
+            }
+        }
 
     def loss_fn(self, logits, labels):
         return nn.BCEWithLogitsLoss()(logits, labels)
