@@ -6,29 +6,16 @@ from metrics import get_eval_metrics
 
 
 class Engine(pl.LightningModule):
-    def __init__(self, model, n_negative_samples, k=10):
+    def __init__(self, model, k=10):
         super().__init__()
         self.model = model
-        self.n_negative_samples = n_negative_samples
         self.k = k
 
     def forward(self, users, items):
         return self.model(users, items)
 
     def training_step(self, batch, batch_idx):
-        pos, score = batch
-        users, pos_items = pos[:, 0], pos[:, 1]
-
-        neg_items = torch.multinomial(score, self.n_negative_samples)
-        items = torch.cat((pos_items.view(-1, 1), neg_items), dim=1)
-
-        labels = torch.zeros(items.shape)
-        labels[:, 0] += 1
-        users = users.view(-1, 1).repeat(1, items.shape[1])
-
-        users = users.view(-1, 1).squeeze()
-        items = items.view(-1, 1).squeeze()
-        labels = labels.view(-1, 1).squeeze()
+        users, items, labels = batch
 
         logits = self(users, items)
         loss = self.loss_fn(logits, labels)
@@ -45,9 +32,8 @@ class Engine(pl.LightningModule):
         pass
 
     def validation_step(self, batch, batch_idx):
-        pos, items, labels = batch
+        users, items, labels = batch
         n_items = items.shape[1]
-        users = pos[:, 0].view(-1, 1).repeat(1, n_items)
 
         users = users.view(-1, 1).squeeze()
         items = items.view(-1, 1).squeeze()
@@ -58,7 +44,7 @@ class Engine(pl.LightningModule):
 
         items = items.view(-1, n_items)
         logits = logits.view(-1, n_items)
-        item_true = pos[:, 1].view(-1, 1)
+        item_true = items[:, 0].view(-1, 1)
         item_scores = [dict(zip(item.tolist(), score.tolist())) for item, score in zip(items, logits)]
         ndcg, apak, hr = get_eval_metrics(item_scores, item_true, self.k)
         metrics = {
@@ -67,7 +53,7 @@ class Engine(pl.LightningModule):
             'apak': apak,
             'hr': hr,
         }
-        self.log("Val Metrics", metrics, prog_bar=True)
+        self.log("val metrics", metrics, prog_bar=True)
 
         return {
             "loss": loss.item(),
@@ -78,12 +64,12 @@ class Engine(pl.LightningModule):
         pass
 
     def configure_optimizers(self):
-        optimizer = torch.optim.AdamW(self.parameters(), lr=0.05)
+        optimizer = torch.optim.AdamW(self.parameters(), lr=0.001)
         n_steps = self.trainer.max_epochs * len(self.train_dataloader())
         lr_scheduler = torch.optim.lr_scheduler.LinearLR(optimizer,
                                                          start_factor=1,
                                                          end_factor=0,
-                                                         total_iters=n_steps, )
+                                                         total_iters=n_steps)
         return {
             "optimizer": optimizer,
             "lr_scheduler": {

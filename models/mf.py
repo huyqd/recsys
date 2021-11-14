@@ -16,15 +16,15 @@ class AlsMF(nn.Module):
 
         self.model = model
 
-    def fit(self, ds):
-        train = ds.train_ds.train.to_dense()
+    def fit(self, dm):
+        train = dm.train_sparse.to_dense()
         train = sparse.csr_matrix(train)
         self.model.fit(train.T)
 
-    def forward(self, ds):
-        test_items = ds.test_ds.test_items
+    def forward(self, dm):
+        test_items = dm.test_items
         test_scores = []
-        for u in range(ds.test_ds.n_users):
+        for u in range(dm.n_users):
             items = test_items[u]
             user_features, item_features = self.model.user_factors[u], self.model.item_factors[items]
             item_scores = user_features.dot(item_features.T)
