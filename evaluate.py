@@ -2,7 +2,7 @@ import argparse
 
 import pytorch_lightning as pl
 
-from dataset import ML1mDataset
+from dataset import ML1mDataModule
 from metrics import get_eval_metrics
 from models import *
 from utils import Engine
@@ -13,19 +13,21 @@ if __name__ == '__main__':
     parser.add_argument("--embedding-dim", type=int, default=32, help="embedding-dim")
     parser.add_argument("--n-negative-samples", type=int, default=4,
                         help="number of negative examples for neg sampling")
+    parser.add_argument("--batch-size", type=int, default=128, help="batch size for train dataloader")
     parser.add_argument("--n-workers", type=int, default=8, help="number of workers for dataloader")
     parser.add_argument("--seed", type=int, default=42, help="Seed")
     args = parser.parse_args()
     model = VanillaMF
 
-    ds = ML1mDataset(n_workers=args.n_workers)
-    n_users, n_items = ds.train_ds.n_users, ds.train_ds.n_items
+    dm = ML1mDataModule(batch_size=args.batch_size, n_workers=args.n_workers)
+    dm.setup()
+    n_users, n_items = dm.train_ds.n_users, dm.train_ds.n_items
 
     if model in (Popularity, AlsMF):
         model = model(args.embedding_dim)
-        model.fit(ds)
-        scores = model(ds)
-        labels = ds.test_ds.test_pos[:, [1]]
+        model.fit(dm)
+        scores = model(dm)
+        labels = dm.test_ds.test_pos[:, [1]]
         ndcg, apak, hr = get_eval_metrics(scores, labels, args.k)
         metrics = {
             'ndcg': ndcg,
@@ -49,4 +51,4 @@ if __name__ == '__main__':
             # callbacks=[lr_monitor],
         )
 
-        trainer.fit(recommender, train_dataloaders=ds.train_dl, val_dataloaders=ds.test_dl)
+        trainer.fit(recommender, datamodule=dm)
