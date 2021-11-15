@@ -17,9 +17,10 @@ if __name__ == '__main__':
     parser.add_argument("--n-workers", type=int, default=8, help="number of workers for dataloader")
     parser.add_argument("--max-epochs", type=int, default=200, help="max number of epochs")
     parser.add_argument("--fast-dev-run", type=int, default=0, help="unit test")
+    parser.add_argument("--overfit-batches", type=float, default=0.0, help="number of batches for overfitting purpose")
     parser.add_argument("--seed", type=int, default=42, help="Seed")
     args = parser.parse_args()
-    model = AlsMF
+    model = MLP
 
     dm = ML1mDataModule(batch_size=args.batch_size,
                         n_negative_samples=args.n_negative_samples,
@@ -54,6 +55,7 @@ if __name__ == '__main__':
             gradient_clip_algorithm="norm",
             fast_dev_run=args.fast_dev_run,
             reload_dataloaders_every_n_epochs=args.max_epochs // 10,  # For dynamic negative sampling
+            # overfit_batches=args.overfit_batches,
             # callbacks=[lr_monitor],
         )
 
