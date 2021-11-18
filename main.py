@@ -1,16 +1,17 @@
 import argparse
+from datetime import datetime
 
-import wandb
 import pytorch_lightning as pl
 from pytorch_lightning.loggers import WandbLogger
 
 from dataset import ML1mDataModule
 from metrics import get_eval_metrics
-from models import *
+from models import MODELS_DICT
 from utils import Engine
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
+    parser.add_argument("--model-name", type=str, default="NeuMF", help="model name")
     parser.add_argument("--k", type=int, default=10, help="k")
     parser.add_argument("--embedding-dim", type=int, default=32, help="embedding-dim")
     parser.add_argument("--n-negative-samples", type=int, default=4,
@@ -22,7 +23,9 @@ if __name__ == '__main__':
     parser.add_argument("--overfit-batches", type=float, default=0.0, help="number of batches for overfitting purpose")
     parser.add_argument("--seed", type=int, default=42, help="Seed")
     args = parser.parse_args()
-    model = Popularity
+
+    # args.model_name = "Popularity"
+    model = MODELS_DICT[args.model_name]
 
     dm = ML1mDataModule(batch_size=args.batch_size,
                         n_negative_samples=args.n_negative_samples,
@@ -30,9 +33,13 @@ if __name__ == '__main__':
     dm.setup()
     n_users, n_items = dm.n_users, dm.n_items
 
-    if model in (Popularity, AlsMF):
-        logger = WandbLogger(project="MovieLens 1M Implicit Dataset")
+    name = f'{args.model_name}-{datetime.now().strftime("%Y%m%d-%H%M%S")}'
+    logger = WandbLogger(name=name, project="MovieLens 1M Implicit Dataset", group=args.model_name)
+
+    if args.model_name in ("Popularity", "AlsMF"):
         logger.experiment.config['embedding_dim'] = args.embedding_dim
+        logger.experiment.config['k'] = args.k
+
         model = model(args.embedding_dim)
         model.fit(dm)
         scores = model(dm)
@@ -46,14 +53,12 @@ if __name__ == '__main__':
         logger.experiment.log(metrics)
         print(metrics)
     else:
-
         pl.seed_everything(args.seed)
         model = model(n_users, n_items, args.embedding_dim)
         recommender = Engine(model, k=args.k)
 
         if not (args.fast_dev_run or args.overfit_batches):
-            logger = WandbLogger(project="MovieLens 1M Implicit Dataset")
-            # logger.watch(model, log="all")
+            logger.watch(model, log="all")
         else:
             logger = False
 
@@ -68,7 +73,7 @@ if __name__ == '__main__':
             gradient_clip_algorithm="norm",
             fast_dev_run=args.fast_dev_run,
             reload_dataloaders_every_n_epochs=10,  # For dynamic negative sampling
-            # overfit_batches=args.overfit_batches,
+            overfit_batches=args.overfit_batches,
             # callbacks=[lr_monitor],
         )
 
