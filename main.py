@@ -17,6 +17,7 @@ if __name__ == '__main__':
     parser.add_argument("--n-negative-samples", type=int, default=4,
                         help="number of negative examples for neg sampling")
     parser.add_argument("--batch-size", type=int, default=1024, help="batch size for train dataloader")
+    parser.add_argument("--lr", type=float, default=0.001, help="learning rate")
     parser.add_argument("--n-workers", type=int, default=8, help="number of workers for dataloader")
     parser.add_argument("--max-epochs", type=int, default=200, help="max number of epochs")
     parser.add_argument("--fast-dev-run", type=int, default=0, help="unit test")
@@ -57,7 +58,7 @@ if __name__ == '__main__':
     else:
         pl.seed_everything(args.seed)
         model = model(n_users, n_items, args.embedding_dim)
-        recommender = Engine(model, k=args.k)
+        recommender = Engine(model, lr=args.lr, k=args.k, )
 
         if not (args.fast_dev_run or args.overfit_batches):
             logger.watch(model, log="all")

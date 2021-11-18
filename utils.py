@@ -6,8 +6,9 @@ from metrics import get_eval_metrics
 
 
 class Engine(pl.LightningModule):
-    def __init__(self, model, k=10):
+    def __init__(self, model, lr, k=10):
         super().__init__()
+        self.lr = lr
         self.k = k
         self.embedding_dim = model.embedding_dim
         self.n_users = model.n_users
@@ -69,7 +70,7 @@ class Engine(pl.LightningModule):
         pass
 
     def configure_optimizers(self):
-        optimizer = torch.optim.AdamW(self.parameters(), lr=0.001)
+        optimizer = torch.optim.AdamW(self.parameters(), lr=self.lr)
         n_steps = self.trainer.max_epochs * len(self.train_dataloader())
         lr_scheduler = torch.optim.lr_scheduler.LinearLR(optimizer,
                                                          start_factor=1,
