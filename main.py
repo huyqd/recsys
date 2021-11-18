@@ -39,6 +39,8 @@ if __name__ == '__main__':
     if args.model_name in ("Popularity", "AlsMF"):
         logger.experiment.config['embedding_dim'] = args.embedding_dim
         logger.experiment.config['k'] = args.k
+        logger.experiment.config['n_users'] = n_users
+        logger.experiment.config['n_items'] = n_items
 
         model = model(args.embedding_dim)
         model.fit(dm)

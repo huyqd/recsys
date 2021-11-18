@@ -10,6 +10,8 @@ class Engine(pl.LightningModule):
         super().__init__()
         self.k = k
         self.embedding_dim = model.embedding_dim
+        self.n_users = model.n_users
+        self.n_items = model.n_items
         self.save_hyperparameters()
 
         self.model = model
