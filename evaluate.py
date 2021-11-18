@@ -1,6 +1,7 @@
 import argparse
 
 import pytorch_lightning as pl
+from pytorch_lightning.loggers import WandbLogger
 
 from dataset import ML1mDataModule
 from metrics import get_eval_metrics
@@ -41,20 +42,28 @@ if __name__ == '__main__':
         }
         print(metrics)
     else:
+
         pl.seed_everything(args.seed)
         model = model(n_users, n_items, args.embedding_dim)
         recommender = Engine(model, k=args.k)
+
+        if not (args.fast_dev_run or args.overfit_batches):
+            logger = WandbLogger(project="MovieLens 1M Implicit Dataset")
+            # logger.watch(model, log="all")
+        else:
+            logger = False
+
         # lr_monitor = pl.callbacks.LearningRateMonitor(logging_interval='step')
         trainer = pl.Trainer(
             max_epochs=args.max_epochs,
-            logger=False,
+            logger=logger,
             check_val_every_n_epoch=1,
             checkpoint_callback=False,
             num_sanity_val_steps=0,
             gradient_clip_val=1,
             gradient_clip_algorithm="norm",
             fast_dev_run=args.fast_dev_run,
-            reload_dataloaders_every_n_epochs=args.max_epochs // 10,  # For dynamic negative sampling
+            reload_dataloaders_every_n_epochs=10,  # For dynamic negative sampling
             # overfit_batches=args.overfit_batches,
             # callbacks=[lr_monitor],
         )

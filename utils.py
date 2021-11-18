@@ -8,8 +8,10 @@ from metrics import get_eval_metrics
 class Engine(pl.LightningModule):
     def __init__(self, model, k=10):
         super().__init__()
-        self.model = model
         self.k = k
+        self.save_hyperparameters()
+
+        self.model = model
 
     def forward(self, users, items):
         return self.model(users, items)
