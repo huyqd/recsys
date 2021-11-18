@@ -1,5 +1,6 @@
 import argparse
 
+import wandb
 import pytorch_lightning as pl
 from pytorch_lightning.loggers import WandbLogger
 
@@ -21,7 +22,7 @@ if __name__ == '__main__':
     parser.add_argument("--overfit-batches", type=float, default=0.0, help="number of batches for overfitting purpose")
     parser.add_argument("--seed", type=int, default=42, help="Seed")
     args = parser.parse_args()
-    model = MLP
+    model = Popularity
 
     dm = ML1mDataModule(batch_size=args.batch_size,
                         n_negative_samples=args.n_negative_samples,
@@ -30,6 +31,8 @@ if __name__ == '__main__':
     n_users, n_items = dm.n_users, dm.n_items
 
     if model in (Popularity, AlsMF):
+        logger = WandbLogger(project="MovieLens 1M Implicit Dataset")
+        logger.experiment.config['embedding_dim'] = args.embedding_dim
         model = model(args.embedding_dim)
         model.fit(dm)
         scores = model(dm)
@@ -40,6 +43,7 @@ if __name__ == '__main__':
             'apak': apak,
             'hr': hr,
         }
+        logger.experiment.log(metrics)
         print(metrics)
     else:
 
