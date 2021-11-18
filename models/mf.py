@@ -39,6 +39,9 @@ class VanillaMF(nn.Module):
 
     def __init__(self, n_users, n_items, embedding_dim):
         super(VanillaMF, self).__init__()
+        self.n_users = n_users
+        self.n_items = n_items
+        self.embedding_dim = embedding_dim
         self.user_embedding = nn.Embedding(
             num_embeddings=n_users, embedding_dim=embedding_dim
         )
@@ -55,6 +58,9 @@ class BiasMF(nn.Module):
 
     def __init__(self, n_users, n_items, embedding_dim):
         super(BiasMF, self).__init__()
+        self.n_users = n_users
+        self.n_items = n_items
+        self.embedding_dim = embedding_dim
         self.user_embedding = nn.Embedding(
             num_embeddings=n_users, embedding_dim=embedding_dim
         )

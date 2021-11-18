@@ -6,6 +6,10 @@ class GMF(nn.Module):
     def __init__(self, n_users, n_items, embedding_dim):
         super().__init__()
 
+        self.n_users = n_users
+        self.n_items = n_items
+        self.embedding_dim = embedding_dim
+
         self.user_embedding = nn.Embedding(
             num_embeddings=n_users, embedding_dim=embedding_dim
         )
@@ -37,6 +41,9 @@ class GMF(nn.Module):
 class MLP(nn.Module):
     def __init__(self, n_users, n_items, embedding_dim, dropout=0.1):
         super().__init__()
+        self.n_users = n_users
+        self.n_items = n_items
+        self.embedding_dim = embedding_dim
 
         self.user_embedding = nn.Embedding(
             num_embeddings=n_users, embedding_dim=embedding_dim
@@ -80,6 +87,10 @@ class MLP(nn.Module):
 class NeuMF(nn.Module):
     def __init__(self, n_users, n_items, embedding_dim, dropout=0.1):
         super().__init__()
+
+        self.n_users = n_users
+        self.n_items = n_items
+        self.embedding_dim = embedding_dim
 
         self.user_embedding_mlp = nn.Embedding(
             num_embeddings=n_users, embedding_dim=embedding_dim
