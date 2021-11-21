@@ -145,6 +145,7 @@ def train_model(datamodule, logger, args):
         fast_dev_run=args.fast_dev_run,
         reload_dataloaders_every_n_epochs=10,  # For dynamic negative sampling
         overfit_batches=args.overfit_batches,
+        gpus=1 if torch.cuda.is_available() else 0,
         # callbacks=[lr_monitor],
     )
 
