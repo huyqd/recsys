@@ -12,12 +12,9 @@ from models import MODELS_DICT
 
 
 class LitModule(pl.LightningModule):
-    def __init__(self, model_name, n_users, n_items, embedding_dim, lr, k=10):
+    def __init__(self, model_name, n_users, n_items, embedding_dim, optim_name, lr, k=10):
         super().__init__()
         self.save_hyperparameters()
-
-        self.lr = lr
-        self.k = k
 
         self.model = MODELS_DICT[model_name](n_users, n_items, embedding_dim)
         self.loss = nn.BCEWithLogitsLoss()
@@ -57,7 +54,7 @@ class LitModule(pl.LightningModule):
         logits = logits.view(-1, n_items)
         item_true = items[:, 0].view(-1, 1)
         item_scores = [dict(zip(item.tolist(), score.tolist())) for item, score in zip(items, logits)]
-        ndcg, apak, hr = get_eval_metrics(item_scores, item_true, self.k)
+        ndcg, apak, hr = get_eval_metrics(item_scores, item_true, self.hparams.k)
         metrics = {
             'loss': loss.item(),
             'ndcg': ndcg,
@@ -76,7 +73,13 @@ class LitModule(pl.LightningModule):
         pass
 
     def configure_optimizers(self):
-        optimizer = torch.optim.AdamW(self.parameters(), lr=self.lr)
+        if self.hparams.optim_name == "AdamW":
+            optimizer = torch.optim.AdamW(self.model.parameters(), lr=self.hparams.lr)
+        elif self.hparams.optim_name == "SGD":
+            optimizer = torch.optim.SGD(self.model.parameters(), lr=self.hparams.lr, momentum=0.9)
+        else:
+            raise NotImplementedError
+
         n_steps = self.trainer.max_epochs * len(self.train_dataloader())
         lr_scheduler = torch.optim.lr_scheduler.LinearLR(optimizer,
                                                          start_factor=1,
@@ -121,6 +124,7 @@ def train_model(datamodule, logger, args):
                             args.n_users,
                             args.n_items,
                             args.embedding_dim,
+                            optim_name=args.optim,
                             lr=args.lr,
                             k=args.k)
 
@@ -157,6 +161,7 @@ if __name__ == '__main__':
     parser.add_argument("--n-negative-samples", type=int, default=4,
                         help="number of negative examples for neg sampling")
     parser.add_argument("--batch-size", type=int, default=1024, help="batch size for train dataloader")
+    parser.add_argument("--optim", type=str, default="SGD", help="Optimizer")
     parser.add_argument("--lr", type=float, default=0.001, help="learning rate")
     parser.add_argument("--n-workers", type=int, default=8, help="number of workers for dataloader")
     parser.add_argument("--max-epochs", type=int, default=200, help="max number of epochs")
