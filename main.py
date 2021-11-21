@@ -2,12 +2,124 @@ import argparse
 from datetime import datetime
 
 import pytorch_lightning as pl
+import torch
 from pytorch_lightning.loggers import WandbLogger
+from torch import nn
 
 from dataset import ML1mDataModule
 from metrics import get_eval_metrics
 from models import MODELS_DICT
-from utils import Engine
+
+
+class LitModule(pl.LightningModule):
+    def __init__(self, model, lr, k=10):
+        super().__init__()
+        self.lr = lr
+        self.k = k
+        self.embedding_dim = model.embedding_dim
+        self.n_users = model.n_users
+        self.n_items = model.n_items
+        self.save_hyperparameters()
+
+        self.model = model
+        self.loss = nn.BCEWithLogitsLoss()
+
+    def forward(self, users, items):
+        return self.model(users, items)
+
+    def training_step(self, batch, batch_idx):
+        users, items, labels = batch
+
+        logits = self(users, items)
+        loss = self.loss(logits, labels)
+
+        return {
+            "loss": loss,
+            "logits": logits.detach(),
+        }
+
+    def training_epoch_end(self, outputs):
+        # This function recevies as parameters the output from "training_step()"
+        # Outputs is a list which contains a dictionary like:
+        # [{'pred':x,'target':x,'loss':x}, {'pred':x,'target':x,'loss':x}, ...]
+        pass
+
+    def validation_step(self, batch, batch_idx):
+        users, items, labels = batch
+        n_items = items.shape[1]
+
+        users = users.view(-1, 1).squeeze()
+        items = items.view(-1, 1).squeeze()
+        labels = labels.view(-1, 1).squeeze()
+
+        logits = self(users, items)
+        loss = self.loss(logits, labels)
+
+        items = items.view(-1, n_items)
+        logits = logits.view(-1, n_items)
+        item_true = items[:, 0].view(-1, 1)
+        item_scores = [dict(zip(item.tolist(), score.tolist())) for item, score in zip(items, logits)]
+        ndcg, apak, hr = get_eval_metrics(item_scores, item_true, self.k)
+        metrics = {
+            'loss': loss.item(),
+            'ndcg': ndcg,
+            'apak': apak,
+            'hr': hr,
+        }
+        self.logger.experiment.log(metrics)
+        self.log("val metrics", metrics, prog_bar=True)
+
+        return {
+            "loss": loss.item(),
+            "logits": logits,
+        }
+
+    def validation_epoch_end(self, outputs):
+        pass
+
+    def configure_optimizers(self):
+        optimizer = torch.optim.AdamW(self.parameters(), lr=self.lr)
+        n_steps = self.trainer.max_epochs * len(self.train_dataloader())
+        lr_scheduler = torch.optim.lr_scheduler.LinearLR(optimizer,
+                                                         start_factor=1,
+                                                         end_factor=0,
+                                                         total_iters=n_steps)
+        return {
+            "optimizer": optimizer,
+            "lr_scheduler": {
+                "scheduler": lr_scheduler,
+                "interval": "step",
+                "frequency": 1,
+                "name": "linear_lr_scheduler",
+            }
+        }
+
+
+def train_model(model, datamodule, logger, args):
+    recommender = LitModule(model, lr=args.lr, k=args.k, )
+
+    if logger and not (args.fast_dev_run or args.overfit_batches):
+        logger.watch(model, log="all")
+    else:
+        logger = False
+
+    # lr_monitor = pl.callbacks.LearningRateMonitor(logging_interval='step')
+    trainer = pl.Trainer(
+        max_epochs=args.max_epochs,
+        logger=logger,
+        check_val_every_n_epoch=1,
+        checkpoint_callback=False,
+        num_sanity_val_steps=0,
+        gradient_clip_val=1,
+        gradient_clip_algorithm="norm",
+        fast_dev_run=args.fast_dev_run,
+        reload_dataloaders_every_n_epochs=10,  # For dynamic negative sampling
+        overfit_batches=args.overfit_batches,
+        # callbacks=[lr_monitor],
+    )
+
+    trainer.fit(recommender, datamodule=datamodule)
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -58,26 +170,4 @@ if __name__ == '__main__':
     else:
         pl.seed_everything(args.seed)
         model = model(n_users, n_items, args.embedding_dim)
-        recommender = Engine(model, lr=args.lr, k=args.k, )
-
-        if not (args.fast_dev_run or args.overfit_batches):
-            logger.watch(model, log="all")
-        else:
-            logger = False
-
-        # lr_monitor = pl.callbacks.LearningRateMonitor(logging_interval='step')
-        trainer = pl.Trainer(
-            max_epochs=args.max_epochs,
-            logger=logger,
-            check_val_every_n_epoch=1,
-            checkpoint_callback=False,
-            num_sanity_val_steps=0,
-            gradient_clip_val=1,
-            gradient_clip_algorithm="norm",
-            fast_dev_run=args.fast_dev_run,
-            reload_dataloaders_every_n_epochs=10,  # For dynamic negative sampling
-            overfit_batches=args.overfit_batches,
-            # callbacks=[lr_monitor],
-        )
-
-        trainer.fit(recommender, datamodule=dm)
+        train_model(model, dm, logger, args)
