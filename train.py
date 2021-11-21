@@ -12,16 +12,14 @@ from models import MODELS_DICT
 
 
 class LitModule(pl.LightningModule):
-    def __init__(self, model, lr, k=10):
+    def __init__(self, model_name, n_users, n_items, embedding_dim, lr, k=10):
         super().__init__()
-        self.lr = lr
-        self.k = k
-        self.embedding_dim = model.embedding_dim
-        self.n_users = model.n_users
-        self.n_items = model.n_items
         self.save_hyperparameters()
 
-        self.model = model
+        self.lr = lr
+        self.k = k
+
+        self.model = MODELS_DICT[model_name](n_users, n_items, embedding_dim)
         self.loss = nn.BCEWithLogitsLoss()
 
     def forward(self, users, items):
@@ -95,11 +93,39 @@ class LitModule(pl.LightningModule):
         }
 
 
-def train_model(model, datamodule, logger, args):
-    recommender = LitModule(model, lr=args.lr, k=args.k, )
+def train_other_model(datamodule, logger, args):
+    model = MODELS_DICT[args.model_name]
+    logger.experiment.config['embedding_dim'] = args.embedding_dim
+    logger.experiment.config['k'] = args.k
+    logger.experiment.config['n_users'] = args.n_users
+    logger.experiment.config['n_items'] = args.n_items
+
+    model = model(args.embedding_dim)
+    model.fit(datamodule)
+    scores = model(datamodule)
+    true = datamodule.test_items[:, [0]]
+    ndcg, apak, hr = get_eval_metrics(scores, true, args.k)
+    metrics = {
+        'ndcg': ndcg,
+        'apak': apak,
+        'hr': hr,
+    }
+    logger.experiment.log(metrics)
+    print(metrics)
+
+    return model
+
+
+def train_model(datamodule, logger, args):
+    recommender = LitModule(args.model_name,
+                            args.n_users,
+                            args.n_items,
+                            args.embedding_dim,
+                            lr=args.lr,
+                            k=args.k)
 
     if logger and not (args.fast_dev_run or args.overfit_batches):
-        logger.watch(model, log="all")
+        logger.watch(recommender.model, log="all")
     else:
         logger = False
 
@@ -120,6 +146,8 @@ def train_model(model, datamodule, logger, args):
 
     trainer.fit(recommender, datamodule=datamodule)
 
+    return recommender.model
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -138,36 +166,18 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # args.model_name = "Popularity"
-    model = MODELS_DICT[args.model_name]
 
     dm = ML1mDataModule(batch_size=args.batch_size,
                         n_negative_samples=args.n_negative_samples,
                         n_workers=args.n_workers)
     dm.setup()
-    n_users, n_items = dm.n_users, dm.n_items
+    args.n_users, args.n_items = dm.n_users, dm.n_items
 
     name = f'{args.model_name}-{datetime.now().strftime("%Y%m%d-%H%M%S")}'
     logger = WandbLogger(name=name, project="MovieLens 1M Implicit Dataset", group=args.model_name)
 
     if args.model_name in ("Popularity", "AlsMF"):
-        logger.experiment.config['embedding_dim'] = args.embedding_dim
-        logger.experiment.config['k'] = args.k
-        logger.experiment.config['n_users'] = n_users
-        logger.experiment.config['n_items'] = n_items
-
-        model = model(args.embedding_dim)
-        model.fit(dm)
-        scores = model(dm)
-        true = dm.test_items[:, [0]]
-        ndcg, apak, hr = get_eval_metrics(scores, true, args.k)
-        metrics = {
-            'ndcg': ndcg,
-            'apak': apak,
-            'hr': hr,
-        }
-        logger.experiment.log(metrics)
-        print(metrics)
+        train_other_model(dm, logger, args)
     else:
         pl.seed_everything(args.seed)
-        model = model(n_users, n_items, args.embedding_dim)
-        train_model(model, dm, logger, args)
+        train_model(dm, logger, args)
