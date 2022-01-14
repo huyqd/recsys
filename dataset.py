@@ -16,8 +16,7 @@ class ML1mDataModule(pl.LightningDataModule):
         self.n_workers = n_workers
         self.data_dir = CURRENT_PATH / "data"
 
-        self.n_users = None
-        self.n_items = None
+        self.n_users, self.n_items = torch.load(self.data_dir / 'ml-1m-train.pt').size()
         self.train_sparse = None
         self.train_score = None
         self.test_users = None
@@ -27,6 +26,9 @@ class ML1mDataModule(pl.LightningDataModule):
         self.train_ds = None
         self.test_ds = None
 
+        self.train_steps = None
+        self.test_steps = None
+
     def prepare_data(self):
         pass
 
@@ -34,8 +36,6 @@ class ML1mDataModule(pl.LightningDataModule):
         if stage == "fit" or stage is None:
             # Train data
             self.train_sparse = torch.load(self.data_dir / 'ml-1m-train.pt')
-            self.n_users, self.n_items = self.train_sparse.size()
-
             self.train_score = torch.sparse.sum(self.train_sparse, dim=0)
 
             # Test data
@@ -69,7 +69,7 @@ class ML1mDataModule(pl.LightningDataModule):
             # Sample negative items
             n_neg_items = self.n_negative_samples * n_pos_items
             sampling_prob = torch.ones(self.n_items)
-            sampling_prob[pos_items] = 0    # Don't sample positive items
+            sampling_prob[pos_items] = 0  # Don't sample positive items
             neg_items = torch.multinomial(sampling_prob, n_neg_items, replacement=True)
 
             users.append(user.repeat(n_pos_items + n_neg_items))
@@ -86,12 +86,18 @@ class ML1mDataModule(pl.LightningDataModule):
         users, items, labels = self._negative_sampling()
         self.train_ds = ML1mDataset(users, items, labels)
 
-        return DataLoader(self.train_ds, batch_size=self.batch_size, shuffle=True, num_workers=self.n_workers)
+        train_dl = DataLoader(self.train_ds, batch_size=self.batch_size, shuffle=True, num_workers=self.n_workers)
+        self.train_steps = len(train_dl)
+
+        return train_dl
 
     def val_dataloader(self):
         self.test_ds = ML1mDataset(self.test_users, self.test_items, self.test_labels)
 
-        return DataLoader(self.test_ds, batch_size=512, shuffle=False, num_workers=self.n_workers)
+        test_dl = DataLoader(self.test_ds, batch_size=512, shuffle=False, num_workers=self.n_workers)
+        self.test_steps = len(test_dl)
+
+        return test_dl
 
 
 class ML1mDataset(Dataset):

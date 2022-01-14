@@ -61,7 +61,8 @@ class LitModule(pl.LightningModule):
             'apak': apak,
             'hr': hr,
         }
-        self.logger.experiment.log(metrics)
+
+        logger.experiment.log(metrics)
         self.log("val metrics", metrics, prog_bar=True)
 
         return {
@@ -75,6 +76,8 @@ class LitModule(pl.LightningModule):
     def configure_optimizers(self):
         if self.hparams.optim_name == "AdamW":
             optimizer = torch.optim.AdamW(self.model.parameters(), lr=self.hparams.lr)
+        elif self.hparams.optim_name == "Adam":
+            optimizer = torch.optim.Adam(self.model.parameters(), lr=self.hparams.lr)
         elif self.hparams.optim_name == "SGD":
             optimizer = torch.optim.SGD(self.model.parameters(), lr=self.hparams.lr, momentum=0.9)
         else:
@@ -85,6 +88,7 @@ class LitModule(pl.LightningModule):
                                                          start_factor=1,
                                                          end_factor=0,
                                                          total_iters=n_steps)
+
         return {
             "optimizer": optimizer,
             "lr_scheduler": {
@@ -143,7 +147,7 @@ def train_model(datamodule, logger, args):
         gradient_clip_val=1,
         gradient_clip_algorithm="norm",
         fast_dev_run=args.fast_dev_run,
-        reload_dataloaders_every_n_epochs=10,  # For dynamic negative sampling
+        reload_dataloaders_every_n_epochs=1,  # For dynamic negative sampling
         overfit_batches=args.overfit_batches,
         gpus=1 if torch.cuda.is_available() else 0,
         # callbacks=[lr_monitor],
@@ -162,21 +166,18 @@ if __name__ == '__main__':
     parser.add_argument("--n-negative-samples", type=int, default=4,
                         help="number of negative examples for neg sampling")
     parser.add_argument("--batch-size", type=int, default=1024, help="batch size for train dataloader")
-    parser.add_argument("--optim", type=str, default="SGD", help="Optimizer")
+    parser.add_argument("--optim", type=str, default="Adam", help="Optimizer")
     parser.add_argument("--lr", type=float, default=0.001, help="learning rate")
-    parser.add_argument("--n-workers", type=int, default=8, help="number of workers for dataloader")
-    parser.add_argument("--max-epochs", type=int, default=200, help="max number of epochs")
+    parser.add_argument("--n-workers", type=int, default=4, help="number of workers for dataloader")
+    parser.add_argument("--max-epochs", type=int, default=128, help="max number of epochs")
     parser.add_argument("--fast-dev-run", type=int, default=0, help="unit test")
     parser.add_argument("--overfit-batches", type=float, default=0.0, help="number of batches for overfitting purpose")
     parser.add_argument("--seed", type=int, default=42, help="Seed")
     args = parser.parse_args()
 
-    # args.model_name = "Popularity"
-
     dm = ML1mDataModule(batch_size=args.batch_size,
                         n_negative_samples=args.n_negative_samples,
                         n_workers=args.n_workers)
-    dm.setup()
     args.n_users, args.n_items = dm.n_users, dm.n_items
 
     name = f'{args.model_name}-{datetime.now().strftime("%Y%m%d-%H%M%S")}'
@@ -185,5 +186,5 @@ if __name__ == '__main__':
     if args.model_name in ("Popularity", "AlsMF"):
         train_other_model(dm, logger, args)
     else:
-        pl.seed_everything(args.seed)
+        # pl.seed_everything(args.seed)
         train_model(dm, logger, args)
