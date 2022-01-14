@@ -8,7 +8,7 @@ from torch.utils.data import Dataset, DataLoader
 CURRENT_PATH = Path(__file__).cwd()
 
 
-class ML1mDataModule(pl.LightningDataModule):
+class BinaryML1mDataModule(pl.LightningDataModule):
     def __init__(self, batch_size=128, n_negative_samples=4, n_workers=8):
         super().__init__()
         self.batch_size = batch_size

@@ -6,7 +6,7 @@ import torch
 from pytorch_lightning.loggers import WandbLogger
 from torch import nn
 
-from dataset import ML1mDataModule
+from dataset import BinaryML1mDataModule
 from metrics import get_eval_metrics
 from models import MODELS_DICT
 
@@ -175,9 +175,9 @@ if __name__ == '__main__':
     parser.add_argument("--seed", type=int, default=42, help="Seed")
     args = parser.parse_args()
 
-    dm = ML1mDataModule(batch_size=args.batch_size,
-                        n_negative_samples=args.n_negative_samples,
-                        n_workers=args.n_workers)
+    dm = BinaryML1mDataModule(batch_size=args.batch_size,
+                              n_negative_samples=args.n_negative_samples,
+                              n_workers=args.n_workers)
     args.n_users, args.n_items = dm.n_users, dm.n_items
 
     name = f'{args.model_name}-{datetime.now().strftime("%Y%m%d-%H%M%S")}'
