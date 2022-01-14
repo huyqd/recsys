@@ -14,7 +14,7 @@ class ML1mDataModule(pl.LightningDataModule):
         self.batch_size = batch_size
         self.n_negative_samples = n_negative_samples
         self.n_workers = n_workers
-        self.data_dir = CURRENT_PATH / "data"
+        self.data_dir = CURRENT_PATH / "data" / "ml-1m" / "binary"
 
         self.n_users, self.n_items = torch.load(self.data_dir / 'ml-1m-train.pt').size()
         self.train_sparse = None
