@@ -36,9 +36,7 @@ class ML1mDataModule(pl.LightningDataModule):
             self.train_sparse = torch.load(self.data_dir / 'ml-1m-train.pt')
             self.n_users, self.n_items = self.train_sparse.size()
 
-            self.train_score = torch.sparse.sum(self.train_sparse, dim=0).to_dense().repeat((self.n_users, 1))
-            train_pos = self.train_sparse._indices().T
-            self.train_score[train_pos[:, 0], train_pos[:, 1]] = 0
+            self.train_score = torch.sparse.sum(self.train_sparse, dim=0)
 
             # Test data
             test_pos = torch.load(self.data_dir / 'ml-1m-test-pos.pt')
@@ -67,8 +65,13 @@ class ML1mDataModule(pl.LightningDataModule):
         for user in user_ids:
             pos_items = pos[pos[:, 0] == user, 1]
             n_pos_items = pos_items.shape[0]
+
+            # Sample negative items
             n_neg_items = self.n_negative_samples * n_pos_items
-            neg_items = torch.multinomial(self.train_score[user], n_neg_items, replacement=True)
+            sampling_prob = torch.ones(self.n_items)
+            sampling_prob[pos_items] = 0    # Don't sample positive items
+            neg_items = torch.multinomial(sampling_prob, n_neg_items, replacement=True)
+
             users.append(user.repeat(n_pos_items + n_neg_items))
             items.append(torch.cat([pos_items, neg_items]))
             labels.append(torch.cat([torch.ones(n_pos_items), torch.zeros(n_neg_items)]))
