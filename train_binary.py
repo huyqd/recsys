@@ -11,7 +11,7 @@ from metrics import get_eval_metrics
 from models import MODELS_DICT
 
 
-class LitModule(pl.LightningModule):
+class BinaryLitModule(pl.LightningModule):
     def __init__(self, model_name, n_users, n_items, embedding_dim, optim_name, lr, k=10):
         super().__init__()
         self.save_hyperparameters()
@@ -124,13 +124,13 @@ def train_other_model(datamodule, logger, args):
 
 
 def train_model(datamodule, logger, args):
-    recommender = LitModule(args.model_name,
-                            args.n_users,
-                            args.n_items,
-                            args.embedding_dim,
-                            optim_name=args.optim,
-                            lr=args.lr,
-                            k=args.k)
+    recommender = BinaryLitModule(args.model_name,
+                                  args.n_users,
+                                  args.n_items,
+                                  args.embedding_dim,
+                                  optim_name=args.optim,
+                                  lr=args.lr,
+                                  k=args.k)
 
     if logger and not (args.fast_dev_run or args.overfit_batches):
         logger.watch(recommender.model, log="all")
