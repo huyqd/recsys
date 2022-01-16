@@ -1,9 +1,10 @@
 from .baseline import *
 from .mf import *
 from .nn import *
+from .ae import *
 from collections import OrderedDict
 
-MODELS_DICT = OrderedDict([
+BINARY_MODELS_DICT = OrderedDict([
     ("Popularity", Popularity),
     ("AlsMF", AlsMF),
     ("VanillaMF", VanillaMF),
@@ -11,4 +12,8 @@ MODELS_DICT = OrderedDict([
     ("GMF", GMF),
     ("MLP", MLP),
     ("NeuMF", NeuMF),
+])
+
+RATING_MODELS_DICT = OrderedDict([
+    ("AutoEncoder", AutoEncoder),
 ])

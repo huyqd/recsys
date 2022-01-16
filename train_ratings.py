@@ -1,36 +1,32 @@
 import argparse
-from datetime import datetime
 
 import pytorch_lightning as pl
 import torch
-from pytorch_lightning.loggers import WandbLogger
 from torch import nn
 
-from dataset import BinaryML1mDataModule
-from metrics import get_eval_metrics
-from models import MODELS_DICT
+from dataset import RatingML1mDataModule
+from models import RATING_MODELS_DICT
 
 
-class BinaryLitModule(pl.LightningModule):
-    def __init__(self, model_name, n_users, n_items, embedding_dim, optim_name, lr, k=10):
+class RatingLitModule(pl.LightningModule):
+    def __init__(self, model_name, n_users, embedding_dim, optim_name, lr):
         super().__init__()
         self.save_hyperparameters()
 
-        self.model = MODELS_DICT[model_name](n_users, n_items, embedding_dim)
-        self.loss = nn.BCEWithLogitsLoss()
+        self.model = RATING_MODELS_DICT[model_name](n_users, embedding_dim)
+        self.loss = nn.MSELoss()
 
-    def forward(self, users, items):
-        return self.model(users, items)
+    def forward(self, rating):
+        return self.model(rating)
 
     def training_step(self, batch, batch_idx):
-        users, items, labels = batch
-
-        logits = self(users, items)
-        loss = self.loss(logits, labels)
+        r_hat = self(batch)
+        r_hat = r_hat[batch != 0]
+        batch = batch[batch != 0]
+        loss = torch.sqrt(self.loss(r_hat, batch))
 
         return {
             "loss": loss,
-            "logits": logits.detach(),
         }
 
     def training_epoch_end(self, outputs):
@@ -40,34 +36,20 @@ class BinaryLitModule(pl.LightningModule):
         pass
 
     def validation_step(self, batch, batch_idx):
-        users, items, labels = batch
-        n_items = items.shape[1]
+        r_hat = self(batch)
+        r_hat = r_hat[batch != 0]
+        batch = batch[batch != 0]
+        loss = torch.sqrt(self.loss(r_hat, batch))
 
-        users = users.view(-1, 1).squeeze()
-        items = items.view(-1, 1).squeeze()
-        labels = labels.view(-1, 1).squeeze()
-
-        logits = self(users, items)
-        loss = self.loss(logits, labels)
-
-        items = items.view(-1, n_items)
-        logits = logits.view(-1, n_items)
-        item_true = items[:, 0].view(-1, 1)
-        item_scores = [dict(zip(item.tolist(), score.tolist())) for item, score in zip(items, logits)]
-        ndcg, apak, hr = get_eval_metrics(item_scores, item_true, self.hparams.k)
         metrics = {
-            'loss': loss.item(),
-            'ndcg': ndcg,
-            'apak': apak,
-            'hr': hr,
+            'rmse': loss.item(),
         }
 
-        logger.experiment.log(metrics)
-        self.log("val metrics", metrics, prog_bar=True)
+        # logger.experiment.log(metrics)
+        self.log("val metrics", metrics, prog_bar=True, on_epoch=True)
 
         return {
-            "loss": loss.item(),
-            "logits": logits,
+            "rmse": loss.item(),
         }
 
     def validation_epoch_end(self, outputs):
@@ -100,33 +82,9 @@ class BinaryLitModule(pl.LightningModule):
         }
 
 
-def train_other_model(datamodule, logger, args):
-    model = MODELS_DICT[args.model_name]
-    logger.experiment.config['embedding_dim'] = args.embedding_dim
-    logger.experiment.config['k'] = args.k
-    logger.experiment.config['n_users'] = args.n_users
-    logger.experiment.config['n_items'] = args.n_items
-
-    model = model(args.embedding_dim)
-    model.fit(datamodule)
-    scores = model(datamodule)
-    true = datamodule.test_items[:, [0]]
-    ndcg, apak, hr = get_eval_metrics(scores, true, args.k)
-    metrics = {
-        'ndcg': ndcg,
-        'apak': apak,
-        'hr': hr,
-    }
-    logger.experiment.log(metrics)
-    print(metrics)
-
-    return model
-
-
 def train_model(datamodule, logger, args):
-    recommender = BinaryLitModule(args.model_name,
-                                  args.n_users,
-                                  args.n_items,
+    recommender = RatingLitModule(args.model_name,
+                                  datamodule.n_users,
                                   args.embedding_dim,
                                   optim_name=args.optim,
                                   lr=args.lr,
@@ -160,12 +118,10 @@ def train_model(datamodule, logger, args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model-name", type=str, default="NeuMF", help="model name")
+    parser.add_argument("--model-name", type=str, default="AutoEncoder", help="model name")
     parser.add_argument("--k", type=int, default=10, help="k")
     parser.add_argument("--embedding-dim", type=int, default=32, help="embedding-dim")
-    parser.add_argument("--n-negative-samples", type=int, default=4,
-                        help="number of negative examples for neg sampling")
-    parser.add_argument("--batch-size", type=int, default=1024, help="batch size for train dataloader")
+    parser.add_argument("--batch-size", type=int, default=128, help="batch size for train dataloader")
     parser.add_argument("--optim", type=str, default="Adam", help="Optimizer")
     parser.add_argument("--lr", type=float, default=0.001, help="learning rate")
     parser.add_argument("--n-workers", type=int, default=4, help="number of workers for dataloader")
@@ -175,16 +131,13 @@ if __name__ == '__main__':
     parser.add_argument("--seed", type=int, default=42, help="Seed")
     args = parser.parse_args()
 
-    dm = BinaryML1mDataModule(batch_size=args.batch_size,
-                              n_negative_samples=args.n_negative_samples,
+    dm = RatingML1mDataModule(batch_size=args.batch_size,
                               n_workers=args.n_workers)
     args.n_users, args.n_items = dm.n_users, dm.n_items
 
-    name = f'{args.model_name}-{datetime.now().strftime("%Y%m%d-%H%M%S")}'
-    logger = WandbLogger(name=name, project="MovieLens 1M Implicit Dataset", group=args.model_name)
+    # name = f'{args.model_name}-{datetime.now().strftime("%Y%m%d-%H%M%S")}'
+    # logger = WandbLogger(name=name, project="MovieLens 1M Rating Dataset", group=args.model_name)
+    logger = None
 
-    if args.model_name in ("Popularity", "AlsMF"):
-        train_other_model(dm, logger, args)
-    else:
-        # pl.seed_everything(args.seed)
-        train_model(dm, logger, args)
+    # pl.seed_everything(args.seed)
+    train_model(dm, logger, args)

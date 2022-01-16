@@ -8,7 +8,7 @@ from torch import nn
 
 from dataset import BinaryML1mDataModule
 from metrics import get_eval_metrics
-from models import MODELS_DICT
+from models import BINARY_MODELS_DICT
 
 
 class BinaryLitModule(pl.LightningModule):
@@ -16,7 +16,7 @@ class BinaryLitModule(pl.LightningModule):
         super().__init__()
         self.save_hyperparameters()
 
-        self.model = MODELS_DICT[model_name](n_users, n_items, embedding_dim)
+        self.model = BINARY_MODELS_DICT[model_name](n_users, n_items, embedding_dim)
         self.loss = nn.BCEWithLogitsLoss()
 
     def forward(self, users, items):
@@ -101,7 +101,7 @@ class BinaryLitModule(pl.LightningModule):
 
 
 def train_other_model(datamodule, logger, args):
-    model = MODELS_DICT[args.model_name]
+    model = BINARY_MODELS_DICT[args.model_name]
     logger.experiment.config['embedding_dim'] = args.embedding_dim
     logger.experiment.config['k'] = args.k
     logger.experiment.config['n_users'] = args.n_users

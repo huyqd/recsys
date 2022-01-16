@@ -126,14 +126,14 @@ class RatingML1mDataModule(pl.LightningDataModule):
         if stage == "fit" or stage is None:
             idx, values = self.ratings_sparse.indices().T, self.ratings_sparse.values()
             train_idx, test_idx, train_values, test_values = train_test_split(idx, values, test_size=0.1)
-            self.train_sparse = torch.sparse_coo_tensor(train_idx, train_values).coalesce()
-            self.test_sparse = torch.sparse_coo_tensor(test_idx, test_values).coalesce()
+            self.train_sparse = torch.sparse_coo_tensor(train_idx.T, train_values).coalesce().to_dense()
+            self.test_sparse = torch.sparse_coo_tensor(test_idx.T, test_values).coalesce().to_dense()
 
         if stage == "test" or stage is None:
             pass
 
     def _get_sparse_ratings(self):
-        ratings = pd.read_csv("ratings.dat",
+        ratings = pd.read_csv(self.data_dir / "ratings.dat",
                               sep="::",
                               header=None,
                               names=['user_id', 'movie_id', 'rating', 'timestamp'],
@@ -180,7 +180,7 @@ class BinaryML1mDataset(Dataset):
 
 class RatingML1mDataset(Dataset):
     def __init__(self, sparse):
-        self.sparse = sparse
+        self.sparse = sparse.T.float()
 
     def __len__(self):
         return self.sparse.size()[0]
