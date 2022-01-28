@@ -65,11 +65,7 @@ class RatingLitModule(pl.LightningModule):
         else:
             raise NotImplementedError
 
-        n_steps = self.trainer.max_epochs * len(self.train_dataloader())
-        lr_scheduler = torch.optim.lr_scheduler.LinearLR(optimizer,
-                                                         start_factor=1,
-                                                         end_factor=0,
-                                                         total_iters=n_steps)
+        lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 1, gamma=0.99)
 
         return {
             "optimizer": optimizer,
@@ -88,7 +84,7 @@ def train_model(datamodule, logger, args):
                                   args.embedding_dim,
                                   optim_name=args.optim,
                                   lr=args.lr,
-                                  k=args.k)
+                                  )
 
     if logger and not (args.fast_dev_run or args.overfit_batches):
         logger.watch(recommender.model, log="all")
@@ -131,8 +127,7 @@ if __name__ == '__main__':
     parser.add_argument("--seed", type=int, default=42, help="Seed")
     args = parser.parse_args()
 
-    dm = RatingML1mDataModule(batch_size=args.batch_size,
-                              n_workers=args.n_workers)
+    dm = RatingML1mDataModule(batch_size=args.batch_size, n_workers=args.n_workers)
     args.n_users, args.n_items = dm.n_users, dm.n_items
 
     # name = f'{args.model_name}-{datetime.now().strftime("%Y%m%d-%H%M%S")}'
