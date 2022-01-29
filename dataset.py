@@ -113,8 +113,8 @@ class RatingML1mDataModule(pl.LightningDataModule):
         self.ratings_sparse = self._get_sparse_ratings()
         self.n_users, self.n_items = self.ratings_sparse.size()
 
-        self.train_sparse = None
-        self.test_sparse = None
+        self.train_data = None
+        self.test_data = None
 
         self.train_ds = None
         self.test_ds = None
@@ -126,8 +126,8 @@ class RatingML1mDataModule(pl.LightningDataModule):
         if stage == "fit" or stage is None:
             idx, values = self.ratings_sparse.indices().T, self.ratings_sparse.values()
             train_idx, test_idx, train_values, test_values = train_test_split(idx, values, test_size=0.1)
-            self.train_sparse = torch.sparse_coo_tensor(train_idx.T, train_values).coalesce().to_dense()
-            self.test_sparse = torch.sparse_coo_tensor(test_idx.T, test_values).coalesce().to_dense()
+            self.train_data = torch.sparse_coo_tensor(train_idx.T, train_values).coalesce().to_dense()
+            self.test_data = torch.sparse_coo_tensor(test_idx.T, test_values).coalesce().to_dense()
 
         if stage == "test" or stage is None:
             pass
@@ -149,12 +149,12 @@ class RatingML1mDataModule(pl.LightningDataModule):
         return sparse_ratings
 
     def train_dataloader(self):
-        self.train_ds = RatingML1mDataset(self.train_sparse)
+        self.train_ds = RatingML1mDataset(self.train_data)
 
         return DataLoader(self.train_ds, batch_size=self.batch_size, shuffle=True, num_workers=self.n_workers)
 
     def val_dataloader(self):
-        self.test_ds = RatingML1mDataset(self.test_sparse)
+        self.test_ds = RatingML1mDataset(self.test_data)
 
         return DataLoader(self.test_ds, batch_size=self.batch_size * 2, shuffle=False, num_workers=self.n_workers)
 
@@ -179,11 +179,11 @@ class BinaryML1mDataset(Dataset):
 
 
 class RatingML1mDataset(Dataset):
-    def __init__(self, sparse):
-        self.sparse = sparse.T.float()
+    def __init__(self, data):
+        self.data = data.T.float()
 
     def __len__(self):
-        return self.sparse.size()[0]
+        return self.data.size()[0]
 
     def __getitem__(self, idx):
-        return self.sparse[idx]
+        return self.data[idx]
