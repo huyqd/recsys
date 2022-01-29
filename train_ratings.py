@@ -59,7 +59,7 @@ class RatingLitModule(pl.LightningModule):
         if self.hparams.optim_name == "AdamW":
             optimizer = torch.optim.AdamW(self.model.parameters(), lr=self.hparams.lr)
         elif self.hparams.optim_name == "Adam":
-            optimizer = torch.optim.Adam(self.model.parameters(), lr=self.hparams.lr)
+            optimizer = torch.optim.Adam(self.model.parameters(), lr=self.hparams.lr, weight_decay=1e-5)
         elif self.hparams.optim_name == "SGD":
             optimizer = torch.optim.SGD(self.model.parameters(), lr=self.hparams.lr, momentum=0.9)
         else:
@@ -101,7 +101,6 @@ def train_model(datamodule, logger, args):
         gradient_clip_val=1,
         gradient_clip_algorithm="norm",
         fast_dev_run=args.fast_dev_run,
-        reload_dataloaders_every_n_epochs=1,  # For dynamic negative sampling
         overfit_batches=args.overfit_batches,
         gpus=1 if torch.cuda.is_available() else 0,
         # callbacks=[lr_monitor],
@@ -119,7 +118,7 @@ if __name__ == '__main__':
     parser.add_argument("--embedding-dim", type=int, default=32, help="embedding-dim")
     parser.add_argument("--batch-size", type=int, default=128, help="batch size for train dataloader")
     parser.add_argument("--optim", type=str, default="Adam", help="Optimizer")
-    parser.add_argument("--lr", type=float, default=0.001, help="learning rate")
+    parser.add_argument("--lr", type=float, default=0.002, help="learning rate")
     parser.add_argument("--n-workers", type=int, default=4, help="number of workers for dataloader")
     parser.add_argument("--max-epochs", type=int, default=128, help="max number of epochs")
     parser.add_argument("--fast-dev-run", type=int, default=0, help="unit test")
