@@ -1,0 +1,11 @@
+class Col:
+    user_id = "user_id"
+    movie_id = "movie_id"
+    rating = "rating"
+    timestamp = "timestamp"
+    title = "title"
+    genre = "genre"
+    gender = "gender"
+    age = "age"
+    occupation = "occupation"
+    zipcode = "zipcode"
