@@ -1,6 +1,8 @@
 class col:
     user_id = "user_id"
+    user_code = "user_code"
     movie_id = "movie_id"
+    movie_code = "movie_code"
     rating = "rating"
     timestamp = "timestamp"
     title = "title"
