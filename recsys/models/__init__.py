@@ -6,8 +6,7 @@ from collections import OrderedDict
 
 BINARY_MODELS_DICT = OrderedDict([
     ("Popularity", Popularity),
-    ("AlsMF", AlsMF),
-    ("VanillaMF", VanillaMF),
+    ("VanillaMF", BareMF),
     ("BiasMF", BiasMF),
     ("GMF", GMF),
     ("MLP", MLP),
