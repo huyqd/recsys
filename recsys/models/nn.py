@@ -18,24 +18,28 @@ class GMF(nn.Module):
         )
         self.linear = nn.Linear(embedding_dim, 1)
 
-        self.init_weight()
+        # self.init_weight()
 
-    def forward(self, users, items):
-        user_embeddings = self.user_embedding(users)
-        item_embeddings = self.item_embedding(items)
-        embeddings = user_embeddings.mul(item_embeddings)
-        output = self.linear(embeddings)
+    def forward(self, users):
+        out = (
+            self.user_embedding(users)
+            .unsqueeze(1)
+            .mul(self.item_embedding.weight)
+            .view(-1, self.embedding_dim)
+        )
+        output = self.linear(out)
 
-        return output.squeeze()
+        return output.view(users.shape[0], -1)
 
-    def init_weight(self):
-        nn.init.normal_(self.user_embedding.weight, std=0.01)
-        nn.init.normal_(self.item_embedding.weight, std=0.01)
-        nn.init.xavier_uniform_(self.linear.weight)
-
-        for m in self.modules():
-            if isinstance(m, nn.Linear) and m.bias is not None:
-                m.bias.data.zero_()
+    # def init_weight(self):
+    #     nn.init.normal_(self.user_embedding.weight, std=0.01)
+    #     nn.init.normal_(self.item_embedding.weight, std=0.01)
+    #     nn.init.xavier_uniform_(self.linear.weight)
+    #
+    #     for m in self.modules():
+    #         if isinstance(m, nn.Linear) and m.bias is not None:
+    #             m.bias.data.zero_()
+    #
 
 
 class MLP(nn.Module):
@@ -56,7 +60,9 @@ class MLP(nn.Module):
         self.linear_layers = nn.ModuleList()
         for idx, (in_dim, out_dim) in enumerate(zip(linear_dims[:-1], linear_dims[1:])):
             self.linear_layers.append(nn.Linear(in_dim, out_dim))
-            if idx != (len(linear_dims) - 2):  # No activation and dropout for last layers
+            if idx != (
+                len(linear_dims) - 2
+            ):  # No activation and dropout for last layers
                 self.linear_layers.append(nn.ReLU())
                 self.linear_layers.append(nn.Dropout(p=dropout))
 
@@ -108,11 +114,20 @@ class NeuMF(nn.Module):
 
         self.linear_gmf = nn.Linear(embedding_dim, int(embedding_dim / 2))
 
-        linear_mlp_dims = (embedding_dim * 2, embedding_dim, embedding_dim, int(embedding_dim / 2))
+        linear_mlp_dims = (
+            embedding_dim * 2,
+            embedding_dim,
+            embedding_dim,
+            int(embedding_dim / 2),
+        )
         self.linear_mlp_layers = nn.ModuleList()
-        for idx, (in_dim, out_dim) in enumerate(zip(linear_mlp_dims[:-1], linear_mlp_dims[1:])):
+        for idx, (in_dim, out_dim) in enumerate(
+            zip(linear_mlp_dims[:-1], linear_mlp_dims[1:])
+        ):
             self.linear_mlp_layers.append(nn.Linear(in_dim, out_dim))
-            if idx != (len(linear_mlp_dims) - 2):  # No activation and dropout for last layers
+            if idx != (
+                len(linear_mlp_dims) - 2
+            ):  # No activation and dropout for last layers
                 self.linear_mlp_layers.append(nn.ReLU())
                 self.linear_mlp_layers.append(nn.Dropout(p=dropout))
 
