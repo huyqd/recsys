@@ -11,3 +11,4 @@ class col:
     age = "age"
     occupation = "occupation"
     zipcode = "zipcode"
+    negative = "negative"

@@ -31,6 +31,33 @@ class GMF(nn.Module):
 
         return output.view(users.shape[0], -1)
 
+
+class GMFPointwise(nn.Module):
+    def __init__(self, n_users, n_items, embedding_dim):
+        super().__init__()
+
+        self.n_users = n_users
+        self.n_items = n_items
+        self.embedding_dim = embedding_dim
+
+        self.user_embedding = nn.Embedding(
+            num_embeddings=n_users, embedding_dim=embedding_dim
+        )
+        self.item_embedding = nn.Embedding(
+            num_embeddings=n_items, embedding_dim=embedding_dim
+        )
+        self.linear = nn.Linear(embedding_dim, 1)
+
+        # self.init_weight()
+
+    def forward(self, users, items):
+        user_embedding = self.user_embedding(users)
+        item_embedding = self.item_embedding(items)
+        element_product = torch.mul(user_embedding, item_embedding)
+        logits = self.linear(element_product)
+
+        return logits
+
     # def init_weight(self):
     #     nn.init.normal_(self.user_embedding.weight, std=0.01)
     #     nn.init.normal_(self.item_embedding.weight, std=0.01)
