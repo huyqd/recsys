@@ -21,6 +21,14 @@ def ndcg_score(true, pred):
     return (dcg / idcg).mean()
 
 
+def hr_score(true, pred):
+    """Compute hr score given true values and predicted values"""
+    # Get relevance, i.e. check if any items in pred matches any items in true
+    rel = np.array([np.isin(true[i], pred[i]) for i in range(true.shape[0])])
+
+    return rel.mean()
+
+
 def get_ndcg(true, pred):
     match = pred.eq(true).nonzero(as_tuple=True)[1]
     ncdg = torch.log(torch.Tensor([2])).div(torch.log(match + 2))
