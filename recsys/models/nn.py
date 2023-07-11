@@ -20,11 +20,22 @@ class GMF(nn.Module):
 
         # self.init_weight()
 
-    def forward(self, users):
+    # def init_weight(self):
+    #     nn.init.normal_(self.user_embedding.weight, std=0.01)
+    #     nn.init.normal_(self.item_embedding.weight, std=0.01)
+    #     nn.init.xavier_uniform_(self.linear.weight)
+    #
+    #     for m in self.modules():
+    #         if isinstance(m, nn.Linear) and m.bias is not None:
+    #             m.bias.data.zero_()
+    #
+
+    def forward(self, users, items=None):
+        items = items if items is not None else torch.arange(self.n_items)
         out = (
             self.user_embedding(users)
             .unsqueeze(1)
-            .mul(self.item_embedding.weight)
+            .mul(self.item_embedding(items))
             .view(-1, self.embedding_dim)
         )
         output = self.linear(out)
@@ -58,16 +69,6 @@ class GMFPointwise(nn.Module):
 
         return logits
 
-    # def init_weight(self):
-    #     nn.init.normal_(self.user_embedding.weight, std=0.01)
-    #     nn.init.normal_(self.item_embedding.weight, std=0.01)
-    #     nn.init.xavier_uniform_(self.linear.weight)
-    #
-    #     for m in self.modules():
-    #         if isinstance(m, nn.Linear) and m.bias is not None:
-    #             m.bias.data.zero_()
-    #
-
 
 class MLP(nn.Module):
     def __init__(self, n_users, n_items, embedding_dim, dropout=0.1):
@@ -88,7 +89,7 @@ class MLP(nn.Module):
         for idx, (in_dim, out_dim) in enumerate(zip(linear_dims[:-1], linear_dims[1:])):
             self.linear_layers.append(nn.Linear(in_dim, out_dim))
             if idx != (
-                len(linear_dims) - 2
+                    len(linear_dims) - 2
             ):  # No activation and dropout for last layers
                 self.linear_layers.append(nn.ReLU())
                 self.linear_layers.append(nn.Dropout(p=dropout))
@@ -149,11 +150,11 @@ class NeuMF(nn.Module):
         )
         self.linear_mlp_layers = nn.ModuleList()
         for idx, (in_dim, out_dim) in enumerate(
-            zip(linear_mlp_dims[:-1], linear_mlp_dims[1:])
+                zip(linear_mlp_dims[:-1], linear_mlp_dims[1:])
         ):
             self.linear_mlp_layers.append(nn.Linear(in_dim, out_dim))
             if idx != (
-                len(linear_mlp_dims) - 2
+                    len(linear_mlp_dims) - 2
             ):  # No activation and dropout for last layers
                 self.linear_mlp_layers.append(nn.ReLU())
                 self.linear_mlp_layers.append(nn.Dropout(p=dropout))
