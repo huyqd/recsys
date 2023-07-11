@@ -43,6 +43,56 @@ class GMF(nn.Module):
         return output.view(users.shape[0], -1)
 
 
+class MLP(nn.Module):
+    def __init__(self, n_users, n_items, embedding_dim, dropout=0.1):
+        super().__init__()
+
+        self.n_users = n_users
+        self.n_items = n_items
+        self.embedding_dim = embedding_dim
+
+        self.user_embedding = nn.Embedding(
+            num_embeddings=n_users, embedding_dim=embedding_dim
+        )
+        self.item_embedding = nn.Embedding(
+            num_embeddings=n_items, embedding_dim=embedding_dim
+        )
+        mlp = []
+        mlp_dim = (embedding_dim * 2, embedding_dim, embedding_dim // 2, 1)
+        for in_dim, out_dim in zip(mlp_dim[:-1], mlp_dim[1:]):
+            mlp.extend([nn.Linear(in_dim, out_dim), nn.ReLU(), nn.Dropout(p=dropout)])
+        mlp = mlp[:-2]  # remove relu and dropout for the last layer
+        self.mlp = nn.Sequential(*mlp)
+
+        # self.init_weight()
+
+    # def init_weight(self):
+    #     nn.init.normal_(self.user_embedding.weight, std=0.01)
+    #     nn.init.normal_(self.item_embedding.weight, std=0.01)
+    #     nn.init.xavier_uniform_(self.linear.weight)
+    #
+    #     for m in self.modules():
+    #         if isinstance(m, nn.Linear) and m.bias is not None:
+    #             m.bias.data.zero_()
+    #
+
+    def forward(self, users, items=None):
+        items = items if items is not None else torch.arange(self.n_items)
+        item_embedding = self.item_embedding(items)
+        user_embedding = (
+            self.user_embedding(users)
+            .unsqueeze(1)
+            .repeat((1, item_embedding.shape[1], 1))
+        )
+        output = self.mlp(
+            torch.cat([user_embedding, item_embedding], dim=2).view(
+                -1, self.embedding_dim * 2
+            )
+        )
+
+        return output.view(users.shape[0], -1)
+
+
 class GMFPointwise(nn.Module):
     def __init__(self, n_users, n_items, embedding_dim):
         super().__init__()
@@ -70,7 +120,7 @@ class GMFPointwise(nn.Module):
         return logits
 
 
-class MLP(nn.Module):
+class MLPPointwise(nn.Module):
     def __init__(self, n_users, n_items, embedding_dim, dropout=0.1):
         super().__init__()
         self.n_users = n_users
@@ -84,38 +134,34 @@ class MLP(nn.Module):
             num_embeddings=n_items, embedding_dim=embedding_dim
         )
 
-        linear_dims = (embedding_dim * 2, embedding_dim, int(embedding_dim / 2), 1)
-        self.linear_layers = nn.ModuleList()
-        for idx, (in_dim, out_dim) in enumerate(zip(linear_dims[:-1], linear_dims[1:])):
-            self.linear_layers.append(nn.Linear(in_dim, out_dim))
-            if idx != (
-                    len(linear_dims) - 2
-            ):  # No activation and dropout for last layers
-                self.linear_layers.append(nn.ReLU())
-                self.linear_layers.append(nn.Dropout(p=dropout))
+        mlp = []
+        mlp_dim = (embedding_dim * 2, embedding_dim, embedding_dim // 2, 1)
+        for in_dim, out_dim in zip(mlp_dim[:-1], mlp_dim[1:]):
+            mlp.extend([nn.Linear(in_dim, out_dim), nn.ReLU(), nn.Dropout(p=dropout)])
+        mlp = mlp[:-2]  # remove relu and dropout for the last layer
+        self.mlp = nn.Sequential(*mlp)
 
-        self.init_weight()
+        # self.init_weight()
 
     def forward(self, users, items):
         user_embeddings = self.user_embedding(users)
         item_embeddings = self.item_embedding(items)
-        output = torch.cat([user_embeddings, item_embeddings], axis=1)
-        for layer in self.linear_layers:
-            output = layer(output)
+        output = torch.hstack([user_embeddings, item_embeddings])
 
-        return output.squeeze()
+        return self.mlp(output)
 
-    def init_weight(self):
-        nn.init.normal_(self.user_embedding.weight, std=0.01)
-        nn.init.normal_(self.item_embedding.weight, std=0.01)
-
-        for layer in self.linear_layers:
-            if isinstance(layer, nn.Linear):
-                nn.init.xavier_uniform_(layer.weight)
-
-        for m in self.modules():
-            if isinstance(m, nn.Linear) and m.bias is not None:
-                m.bias.data.zero_()
+    # def init_weight(self):
+    #     nn.init.normal_(self.user_embedding.weight, std=0.01)
+    #     nn.init.normal_(self.item_embedding.weight, std=0.01)
+    #
+    #     for layer in self.linear_layers:
+    #         if isinstance(layer, nn.Linear):
+    #             nn.init.xavier_uniform_(layer.weight)
+    #
+    #     for m in self.modules():
+    #         if isinstance(m, nn.Linear) and m.bias is not None:
+    #             m.bias.data.zero_()
+    #
 
 
 class NeuMF(nn.Module):
@@ -150,11 +196,11 @@ class NeuMF(nn.Module):
         )
         self.linear_mlp_layers = nn.ModuleList()
         for idx, (in_dim, out_dim) in enumerate(
-                zip(linear_mlp_dims[:-1], linear_mlp_dims[1:])
+            zip(linear_mlp_dims[:-1], linear_mlp_dims[1:])
         ):
             self.linear_mlp_layers.append(nn.Linear(in_dim, out_dim))
             if idx != (
-                    len(linear_mlp_dims) - 2
+                len(linear_mlp_dims) - 2
             ):  # No activation and dropout for last layers
                 self.linear_mlp_layers.append(nn.ReLU())
                 self.linear_mlp_layers.append(nn.Dropout(p=dropout))
