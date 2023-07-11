@@ -78,7 +78,13 @@ class MLP(nn.Module):
             1,
         )
         for in_dim, out_dim in zip(self.mlp_dims[:-1], self.mlp_dims[1:]):
-            mlp.extend([nn.Linear(in_dim, out_dim), nn.ReLU(), nn.Dropout(p=dropout)])
+            mlp.extend(
+                [
+                    nn.Linear(in_dim, out_dim),
+                    nn.ReLU(),
+                    nn.Dropout(p=dropout),
+                ]
+            )
         mlp = mlp[:-2]  # remove relu and dropout for the last layer
         self.mlp = nn.Sequential(*mlp)
 
@@ -127,45 +133,45 @@ class MLP(nn.Module):
 
 
 class NeuMF(nn.Module):
-    def __init__(self, n_users, n_items, embedding_dim, dropout=0.1):
+    def __init__(self, n_users, n_items, embedding_dim, mlp_dims=None, dropout=0.1):
         super().__init__()
 
         self.n_users = n_users
         self.n_items = n_items
         self.embedding_dim = embedding_dim
 
-        self.user_embedding_mlp = nn.Embedding(
-            num_embeddings=n_users, embedding_dim=embedding_dim
-        )
-        self.item_embedding_mlp = nn.Embedding(
-            num_embeddings=n_items, embedding_dim=embedding_dim
-        )
-
+        # GMF
         self.user_embedding_gmf = nn.Embedding(
             num_embeddings=n_users, embedding_dim=embedding_dim
         )
         self.item_embedding_gmf = nn.Embedding(
             num_embeddings=n_items, embedding_dim=embedding_dim
         )
+        self.linear_gmf = nn.Linear(embedding_dim, embedding_dim // 2)
 
-        self.linear_gmf = nn.Linear(embedding_dim, int(embedding_dim / 2))
-
-        linear_mlp_dims = (
+        # MLP
+        self.user_embedding_mlp = nn.Embedding(
+            num_embeddings=n_users, embedding_dim=embedding_dim
+        )
+        self.item_embedding_mlp = nn.Embedding(
+            num_embeddings=n_items, embedding_dim=embedding_dim
+        )
+        mlp = []
+        self.mlp_dims = mlp_dims or (
             embedding_dim * 2,
             embedding_dim,
-            embedding_dim,
-            int(embedding_dim / 2),
+            embedding_dim // 2,
         )
-        self.linear_mlp_layers = nn.ModuleList()
-        for idx, (in_dim, out_dim) in enumerate(
-            zip(linear_mlp_dims[:-1], linear_mlp_dims[1:])
-        ):
-            self.linear_mlp_layers.append(nn.Linear(in_dim, out_dim))
-            if idx != (
-                len(linear_mlp_dims) - 2
-            ):  # No activation and dropout for last layers
-                self.linear_mlp_layers.append(nn.ReLU())
-                self.linear_mlp_layers.append(nn.Dropout(p=dropout))
+        for in_dim, out_dim in zip(self.mlp_dims[:-1], self.mlp_dims[1:]):
+            mlp.extend(
+                [
+                    nn.Linear(in_dim, out_dim),
+                    nn.ReLU(),
+                    nn.Dropout(p=dropout),
+                ]
+            )
+        mlp = mlp[:-2]  # remove relu and dropout for the last layer
+        self.linear_mlp = nn.Sequential(*mlp)
 
         self.linear_final = nn.Linear(embedding_dim, 1)
 
@@ -177,7 +183,7 @@ class NeuMF(nn.Module):
         nn.init.normal_(self.user_embedding_gmf.weight, std=0.01)
         nn.init.normal_(self.item_embedding_gmf.weight, std=0.01)
 
-        for layer in self.linear_mlp_layers:
+        for layer in self.linear_mlp:
             if isinstance(layer, nn.Linear):
                 nn.init.xavier_uniform_(layer.weight)
 
@@ -194,28 +200,48 @@ class NeuMF(nn.Module):
         else:
             return self._forward(users, items)
 
-    def _forward(self, users, items):
-        output_gmf = self.gmf(users, items, return_hidden=True)
-        output_mlp = self.mlp(users, items, return_hidden=True)
-        output = torch.cat([output_gmf, output_mlp], dim=1)
+    def _forward(self, users, items=None):
+        # GMF
+        items = items if items is not None else torch.arange(self.n_items)
+        output_gmf = self.linear_gmf(
+            self.user_embedding_gmf(users)
+            .unsqueeze(1)
+            .mul(self.item_embedding_gmf(items))
+            .view(-1, self.embedding_dim)
+        )
 
-        return self.linear(output).view(users.shape[0], -1)
+        # MLP
+        item_embedding_mlp = self.item_embedding_mlp(items)
+        user_embedding_mlp = (
+            self.user_embedding_mlp(users)
+            .unsqueeze(1)
+            .repeat((1, item_embedding_mlp.shape[1], 1))
+        )
+        output_mlp = self.linear_mlp(
+            torch.cat([user_embedding_mlp, item_embedding_mlp], dim=2).view(
+                -1, self.embedding_dim * 2
+            )
+        )
+
+        output = self.linear_final(torch.cat([output_gmf, output_mlp], dim=1))
+
+        return output.view(users.shape[0], -1)
 
     def _forward_pointwise(self, users, items):
-        user_embeddings_mlp = self.user_embedding_mlp(users)
-        item_embeddings_mlp = self.item_embedding_mlp(items)
-        embeddings_mlp = torch.cat([user_embeddings_mlp, item_embeddings_mlp], dim=1)
-
+        # GMF
         user_embeddings_gmf = self.user_embedding_gmf(users)
         item_embeddings_gmf = self.item_embedding_gmf(items)
         embeddings_gmf = user_embeddings_gmf.mul(item_embeddings_gmf)
-
         output_gmf = self.linear_gmf(embeddings_gmf)
-        output_mlp = embeddings_mlp
-        for layer in self.linear_mlp_layers:
-            output_mlp = layer(output_mlp)
 
+        # MLP
+        user_embeddings_mlp = self.user_embedding_mlp(users)
+        item_embeddings_mlp = self.item_embedding_mlp(items)
+        embeddings_mlp = torch.cat([user_embeddings_mlp, item_embeddings_mlp], dim=1)
+        output_mlp = self.linear_mlp(embeddings_mlp)
+
+        # Output
         output = torch.cat([output_mlp, output_gmf], dim=1)
         output = self.linear_final(output)
 
-        return output.squeeze()
+        return output
