@@ -1,14 +1,31 @@
+import torch
 from torch import nn
+import torch.nn.functional as F
 
 
-class AutoEncoder(nn.Module):
-    def __init__(self, input_dim, embedding_dim):
-        super(AutoEncoder, self).__init__()
-        self.encoder = nn.Linear(input_dim, embedding_dim)
-        self.decoder = nn.Linear(embedding_dim, input_dim)
-        self.dropout = nn.Dropout(p=0.05)
-        self.g = nn.Sigmoid()
-        self.f = nn.Identity()
+class CDAE(nn.Module):
+    def __init__(
+        self,
+        n_users: int,
+        n_items: int,
+        embedding_dim: int,
+        corruption_ratio: float,
+    ) -> None:
+        super(CDAE, self).__init__()
 
-    def forward(self, x):
-        return self.f(self.decoder(self.dropout(self.g(self.encoder(x)))))
+        self.num_users = n_users
+        self.num_items = n_items
+        self.num_hidden_units = embedding_dim
+        self.corruption_ratio = corruption_ratio
+
+        # CDAE consists of user embedding, encoder, decoder
+        self.user_embedding = nn.Embedding(n_users, embedding_dim)
+        self.encoder = nn.Linear(n_items, embedding_dim)
+        self.decoder = nn.Linear(embedding_dim, n_items)
+        self.corrupt = nn.Dropout(p=corruption_ratio)
+
+    def forward(self, users: torch.Tensor, matrix: torch.Tensor) -> torch.Tensor:
+        # Apply corruption
+        matrix = self.corrupt(matrix)
+        encoder = F.tanh(self.encoder(matrix) + self.user_embedding(users))
+        return self.decoder(encoder)
