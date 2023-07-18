@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import scipy.sparse as scs
+import torch
 
 from recsys.utils import col, path
 
@@ -86,6 +87,114 @@ def load_implicit_data():
     data = np.load(path.ml1m_implicit_npz, allow_pickle=True)["data"].item()
 
     return data
+
+
+def train_dataloader(
+    train_inputs: scs.csr_matrix,
+    batch_size: int = 64,
+    device: str = "cuda",
+    add_user_codes: bool = True,
+    negative_samples: np.ndarray = None,
+    n_negatives: int = None,
+) -> torch.utils.data.DataLoader:
+    """
+    Return train dataloader given inputs
+    If negative_samples and n_negatives are provided, return train_dataloader with negative sampling
+    """
+    # Negative sampling train data
+    if negative_samples is not None:
+        assert (
+            n_negatives is not None
+        ), "Must provide n_negatives if negative samples is not None"
+        row_positives, col_positives = train_inputs.nonzero()
+        row_negatives = row_positives.repeat(n_negatives)
+        col_negatives = np.random.randint(
+            0, negative_samples.shape[1], row_negatives.shape[0]
+        )
+
+        train_negatives = negative_samples[row_negatives, col_negatives].reshape(
+            -1, n_negatives
+        )
+        # Add user indices/codes if add_user_codes is True
+        if add_user_codes:
+            train_positives = np.vstack([row_positives, col_positives]).T
+        else:
+            train_positives = col_positives.reshape(-1, 1)
+        train_data = np.hstack(
+            [
+                train_positives,
+                train_negatives,
+            ]
+        )
+    # Just use sparse input as train data
+    else:
+        train_data = train_inputs.toarray()
+        if add_user_codes:
+            train_data = np.hstack(
+                [
+                    np.arange(train_data.shape[0]).reshape(-1, 1),
+                    train_data,
+                ]
+            )
+
+    dl = torch.utils.data.DataLoader(
+        train_data,
+        batch_size=batch_size,
+        shuffle=True,
+        generator=torch.Generator(device=device),
+    )
+
+    return dl
+
+
+class ImplicitData:
+    def __init__(
+        self,
+        train_inputs: scs.csr_matrix,
+        test_inputs: np.ndarray,
+        train_batch_size: int = 64,
+        test_batch_size: int = 1024,
+        add_user_codes: bool = True,
+        device: str = "cuda",
+        negative_samples: np.ndarray = None,
+        n_negatives: int = None,
+    ):
+        self.train_inputs = train_inputs
+        self.test_inputs = test_inputs
+        self.train_batch_size = train_batch_size
+        self.test_batch_size = test_batch_size
+        self.device = device
+        self.add_user_codes = add_user_codes
+        self.negative_samples = negative_samples
+        self.n_negatives = n_negatives
+
+        self._train_dataloader = None
+        self._test_dataloader = None
+
+    @property
+    def train_dataloader(self):
+        if self.negative_samples is not None or self._train_dataloader is None:
+            self._train_dataloader = train_dataloader(
+                self.train_inputs,
+                self.train_batch_size,
+                self.device,
+                self.add_user_codes,
+                self.negative_samples,
+                self.n_negatives,
+            )
+
+        return self._train_dataloader
+
+    @property
+    def test_dataloader(self):
+        if self._test_dataloader is None:
+            self._test_dataloader = torch.utils.data.DataLoader(
+                self.test_inputs,
+                batch_size=self.test_batch_size,
+                generator=torch.Generator(device=self.device),
+            )
+
+        return self._test_dataloader
 
 
 if __name__ == "__main__":
