@@ -14,7 +14,7 @@ class col:
     age = "age"
     occupation = "occupation"
     zipcode = "zipcode"
-    negative = "negative"
+    negative = "negative_code"
 
 
 class path:
@@ -27,4 +27,4 @@ class path:
     ml1m_split = ml1m / "split"
     ml1m_train_loo = ml1m_split / "train_loo.parquet"
     ml1m_test_loo = ml1m_split / "test_loo.parquet"
-    ml1m_binary_npz = ml1m_split / "ml1m_binary.npz"
+    ml1m_implicit_npz = ml1m_split / "implicit.npz"

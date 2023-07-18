@@ -2,10 +2,12 @@ import implicit
 import numpy as np
 
 from recsys.metrics import ndcg_score, hr_score
-from recsys.dataset import load_data
+from recsys.dataset import load_implicit_data
 
 
-def train_alsmf(inputs, labels, test_codes, k=10):
+def train_alsmf(data, k=10):
+    inputs, labels, test_codes = data["inputs"], data["labels"], data["test_codes"]
+
     model = implicit.als.AlternatingLeastSquares(
         factors=128, iterations=50, use_gpu=True, calculate_training_loss=True
     )
@@ -33,10 +35,10 @@ def train_alsmf(inputs, labels, test_codes, k=10):
     print(f"ndcg: {ndcg_score(labels, preds):.4f}, hr: {hr_score(labels, preds):.4f}")
 
 
-def alsmf_pipeline():
-    inputs, labels, test_codes = load_data()
-    train_alsmf(inputs, labels, test_codes)
+def run_alsmf():
+    data = load_implicit_data()
+    train_alsmf(data)
 
 
 if __name__ == "__main__":
-    alsmf_pipeline()
+    run_alsmf()

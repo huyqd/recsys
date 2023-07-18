@@ -79,16 +79,13 @@ def split_data_loo(n_test_codes=100):
         "test_labels": test_labels,
         "negative_samples": negative_samples,
     }
-    np.savez(path.ml1m_binary_npz, data=npz)
+    np.savez(path.ml1m_implicit_npz, data=npz)
 
 
-def load_data():
-    data = np.load(path.ml1m_binary_npz, allow_pickle=True)["data"].item()
-    train_inputs = data["inputs"]
-    train_labels = data["labels"]
-    test_codes = data["test_codes"]
+def load_implicit_data():
+    data = np.load(path.ml1m_implicit_npz, allow_pickle=True)["data"].item()
 
-    return data["inputs"], data["labels"], data["test_codes"]
+    return data
 
 
 if __name__ == "__main__":
