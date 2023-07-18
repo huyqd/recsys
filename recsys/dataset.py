@@ -73,7 +73,7 @@ def split_data_loo(n_test_codes=100):
     test_labels = np.zeros(shape=test_codes.shape, dtype=float)
     test_labels[:, 0] = 1
     npz = {
-        "inputs": user_movie_matrix,
+        "inputs": inputs,
         "labels": labels,
         "test_codes": test_codes,
         "test_labels": test_labels,
