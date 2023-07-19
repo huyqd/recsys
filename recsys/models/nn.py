@@ -114,6 +114,11 @@ class MLP(nn.Module):
         else:
             return self._forward(users, items)
 
+    def loss(self, users, items, labels, pointwise=False):
+        outputs = self.forward(users, items, pointwise)
+
+        return F.binary_cross_entropy_with_logits(outputs, labels)
+
     def _forward(self, users, items=None):
         items = items if items is not None else torch.arange(self.n_items)
         item_embedding = self.item_embedding(items)
@@ -205,6 +210,11 @@ class NeuMF(nn.Module):
             return self._forward_pointwise(users, items)
         else:
             return self._forward(users, items)
+
+    def loss(self, users, items, labels, pointwise=False):
+        outputs = self.forward(users, items, pointwise)
+
+        return F.binary_cross_entropy_with_logits(outputs, labels)
 
     def _forward(self, users, items=None):
         # GMF

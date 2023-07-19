@@ -5,10 +5,10 @@ from tqdm import tqdm
 
 from recsys.dataset import load_implicit_data, train_dataloader
 from recsys.metrics import ndcg_score, hr_score
-from recsys.models.nn import GMF
+from recsys.models.nn import NeuMF
 
 
-def train_gmf(data, k=10):
+def train_neumf(data, k=10):
     device = "cuda" if torch.cuda.is_available() else "cpu"
     torch.set_default_device(device)
     (
@@ -32,7 +32,7 @@ def train_gmf(data, k=10):
         generator=torch.Generator(device=device),
     )
 
-    model = GMF(*inputs.shape, 128).to(device)
+    model = NeuMF(*inputs.shape, 128).to(device)
 
     # Define your model
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
@@ -99,10 +99,10 @@ def train_gmf(data, k=10):
         )
 
 
-def run_gmf():
+def run_neumf():
     data = load_implicit_data()
-    train_gmf(data)
+    train_neumf(data)
 
 
 if __name__ == "__main__":
-    run_gmf()
+    run_neumf()
