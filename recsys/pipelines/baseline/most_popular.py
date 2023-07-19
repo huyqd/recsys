@@ -11,11 +11,11 @@ def train_popular(data, k=10):
     scores = np.asarray(inputs.sum(axis=0)).repeat(inputs.shape[0], axis=0)
     scores[inputs.nonzero()] = -1
 
-    print("Predict all metrics")
+    print("All item predictions metrics")
     all_preds = topk(scores)
     _ = compute_metrics(labels, all_preds)
 
-    print("Predict subset metrics")
+    print("Subset of item predictions metrics")
     sub_preds = topk(scores, subset=test_codes)
     _ = compute_metrics(labels, sub_preds)
 
