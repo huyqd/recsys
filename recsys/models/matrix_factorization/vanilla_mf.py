@@ -1,9 +1,9 @@
+import torch
 from torch import nn
+import torch.nn.functional as F
 
 
 class VanillaMF(nn.Module):
-    """A matrix factorization model trained using SGD and negative sampling."""
-
     def __init__(self, n_users, n_items, embedding_dim):
         super().__init__()
         self.n_users = n_users
@@ -16,7 +16,15 @@ class VanillaMF(nn.Module):
             num_embeddings=n_items, embedding_dim=embedding_dim
         )
 
-    def forward(self, users):
+    def forward(self, users, items=None):
+        if items is None:
+            items = torch.arange(self.n_items)
+
         return (
-            self.user_embedding(users).squeeze(1).matmul(self.item_embedding.weight.T)
+            self.user_embedding(users).squeeze(1).matmul(self.item_embedding(items).T)
         )
+
+    def loss(self, users, items, labels):
+        outputs = self(users, items)
+
+        return F.binary_cross_entropy_with_logits(outputs, labels)

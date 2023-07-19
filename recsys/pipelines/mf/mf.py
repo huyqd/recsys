@@ -10,7 +10,7 @@ from recsys.metrics import ndcg_score, hr_score
 from recsys.models.matrix_factorization import VanillaMF, BiasMF
 
 
-def train_baremf(data, k=10):
+def train_vanillamf(data, k=10):
     device = "cuda" if torch.cuda.is_available() else "cpu"
     torch.set_default_device(device)
     (
@@ -39,7 +39,6 @@ def train_baremf(data, k=10):
     model = VanillaMF(*inputs.shape, 128).to(device)
 
     # Define your model
-    criterion = nn.BCEWithLogitsLoss()  # Choose your desired loss function
     optimizer = optim.SGD(model.parameters(), lr=100)
     num_epochs = 500
 
@@ -56,8 +55,7 @@ def train_baremf(data, k=10):
             inter_ = inter_.squeeze(1)
             uids, labels = inter_[:, 0], inter_[:, 1:]
             optimizer.zero_grad()
-            outputs = model(uids.int())
-            loss = criterion(outputs, labels.float())
+            loss = model.loss(uids.int(), None, labels.float())
             loss.backward()
 
             # Perform gradient clipping
@@ -90,9 +88,9 @@ def train_baremf(data, k=10):
             )
 
 
-def run_baremf():
+def run_vanillamf():
     data = load_implicit_data()
-    train_baremf(data)
+    train_vanillamf(data)
 
 
 def train_biasmf(data, k=10):
@@ -124,7 +122,6 @@ def train_biasmf(data, k=10):
     model = BiasMF(*inputs.shape, 128).to(device)
 
     # Define your model
-    criterion = nn.BCEWithLogitsLoss()  # Choose your desired loss function
     optimizer = optim.SGD(model.parameters(), lr=100)
     num_epochs = 500
 
@@ -141,8 +138,7 @@ def train_biasmf(data, k=10):
             inter_ = inter_.squeeze(1)
             uids, labels = inter_[:, 0], inter_[:, 1:]
             optimizer.zero_grad()
-            outputs = model(uids.int())
-            loss = criterion(outputs, labels.float())
+            loss = model.loss(uids.int(), labels.float())
             loss.backward()
 
             # Perform gradient clipping
@@ -181,5 +177,5 @@ def run_biasmf():
 
 
 if __name__ == "__main__":
-    # run_baremf()
-    run_biasmf()
+    run_vanillamf()
+    # run_biasmf()
