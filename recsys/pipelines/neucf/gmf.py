@@ -5,7 +5,7 @@ from tqdm import tqdm
 
 from recsys.dataset import load_implicit_data, train_dataloader
 from recsys.metrics import ndcg_score, hr_score
-from recsys.models.nn import GMF
+from recsys.models.neuralcf import GMF
 
 
 def train_gmf(data, k=10):

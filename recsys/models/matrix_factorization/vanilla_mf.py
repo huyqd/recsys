@@ -19,10 +19,17 @@ class VanillaMF(nn.Module):
     def forward(self, users, items=None):
         if items is None:
             items = torch.arange(self.n_items)
+            outputs = (
+                self.user_embedding(users)
+                .squeeze(1)
+                .matmul(self.item_embedding(items).T)
+            )
+        else:
+            outputs = (
+                self.user_embedding(users).unsqueeze(1).mul(self.item_embedding(items))
+            ).sum(dim=-1)
 
-        return (
-            self.user_embedding(users).squeeze(1).matmul(self.item_embedding(items).T)
-        )
+        return outputs
 
     def loss(self, users, items, labels):
         outputs = self(users, items)
