@@ -7,7 +7,7 @@ from tqdm import tqdm
 
 from recsys.dataset import load_implicit_data
 from recsys.metrics import ndcg_score, hr_score
-from recsys.models.mf import BareMF, BiasMF
+from recsys.models.matrix_factorization import VanillaMF, BiasMF
 
 
 def train_baremf(data, k=10):
@@ -36,7 +36,7 @@ def train_baremf(data, k=10):
         shuffle=True,
         generator=torch.Generator(device=device),
     )
-    model = BareMF(*inputs.shape, 128).to(device)
+    model = VanillaMF(*inputs.shape, 128).to(device)
 
     # Define your model
     criterion = nn.BCEWithLogitsLoss()  # Choose your desired loss function
