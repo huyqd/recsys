@@ -1,30 +1,23 @@
 import numpy as np
 
 from recsys.dataset import load_implicit_data
-from recsys.metrics import ndcg_score, hr_score
+from recsys.metrics import compute_metrics
+from recsys.utils import topk
 
 
 def train_popular(data, k=10):
-    (
-        inputs,
-        y_true,
-        test_codes,
-        negative_samples,
-    ) = (
-        data["inputs"],
-        data["labels"],
-        data["test_codes"],
-        data["negative_samples"],
-    )
+    inputs, labels, test_codes = data["inputs"], data["labels"], data["test_codes"]
     # Most popular retrieval
-    retrieval = np.asarray(inputs.sum(axis=0)).repeat(inputs.shape[0], axis=0)
-    retrieval[inputs.nonzero()] = -1
-    retrieval = np.argsort(retrieval, axis=1)[:, ::-1]
+    scores = np.asarray(inputs.sum(axis=0)).repeat(inputs.shape[0], axis=0)
+    scores[inputs.nonzero()] = -1
 
-    y_pred = retrieval[:, :k]
-    print(
-        f"ndcg@{k}: {ndcg_score(y_true, y_pred):.4f}, hr@{k}: {hr_score(y_true, y_pred):.4f}"
-    )
+    print("Predict all metrics")
+    all_preds = topk(scores)
+    _ = compute_metrics(labels, all_preds)
+
+    print("Predict subset metrics")
+    sub_preds = topk(scores, subset=test_codes)
+    _ = compute_metrics(labels, sub_preds)
 
 
 def run_popular():

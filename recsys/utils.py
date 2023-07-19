@@ -1,4 +1,5 @@
 from pathlib import Path
+import numpy as np
 
 
 class col:
@@ -28,3 +29,24 @@ class path:
     ml1m_train_loo = ml1m_split / "train_loo.parquet"
     ml1m_test_loo = ml1m_split / "test_loo.parquet"
     ml1m_implicit_npz = ml1m_split / "implicit.npz"
+
+
+def topk(scores, array=None, subset=None, k=10):
+    if subset is not None:
+        scores = np.take_along_axis(
+            scores,
+            subset,
+            axis=1,
+        )
+        array = subset
+
+    sorted_scores = np.argsort(scores, axis=1)[:, ::-1][:, :k]
+
+    if array is not None:
+        sorted_scores = np.take_along_axis(
+            array,
+            sorted_scores,
+            axis=1,
+        )
+
+    return sorted_scores
