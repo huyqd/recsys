@@ -19,7 +19,9 @@ class BareMF(nn.Module):
         )
 
     def forward(self, users):
-        return self.user_embedding(users).squeeze(1).matmul(self.item_embedding.weight.T)
+        return (
+            self.user_embedding(users).squeeze(1).matmul(self.item_embedding.weight.T)
+        )
 
 
 class BiasMF(nn.Module):
@@ -42,10 +44,8 @@ class BiasMF(nn.Module):
 
     def forward(self, users):
         return (
-                self.item_bias
-                + self.user_bias[users].view(-1, 1)
-                + self.bias
-                + self.user_embedding(users)
-                .squeeze(1)
-                .matmul(self.item_embedding.weight.T)
+            self.item_bias
+            + self.user_bias[users].view(-1, 1)
+            + self.bias
+            + self.user_embedding(users).squeeze(1).matmul(self.item_embedding.weight.T)
         )
