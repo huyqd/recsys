@@ -1,10 +1,9 @@
 import numpy as np
 import torch
-import torch.nn as nn
 import torch.optim as optim
 from tqdm import tqdm
 
-from recsys.dataset import load_implicit_data, ImplicitData
+from recsys.dataset import load_implicit_data
 from recsys.metrics import ndcg_score, hr_score
 from recsys.models.nn import NeuMF
 
