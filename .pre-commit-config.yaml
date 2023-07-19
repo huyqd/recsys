@@ -1,0 +1,12 @@
+exclude: ^data/
+
+repos:
+  - repo: local
+    hooks:
+      # Formatter
+      - id: black
+        name: black
+        entry: black
+        language: system
+        types: [python]
+        stages: [commit]

@@ -1,189 +1,201 @@
-from pathlib import Path
-from typing import Optional
-
 import numpy as np
 import pandas as pd
-import pytorch_lightning as pl
+import scipy.sparse as scs
 import torch
-from sklearn.model_selection import train_test_split
-from torch.utils.data import Dataset, DataLoader
 
-CURRENT_PATH = Path(__file__).cwd()
+from recsys.utils import col, path
 
 
-class BinaryML1mDataModule(pl.LightningDataModule):
-    def __init__(self, batch_size=128, n_negative_samples=4, n_workers=8):
-        super().__init__()
-        self.batch_size = batch_size
-        self.n_negative_samples = n_negative_samples
-        self.n_workers = n_workers
-        self.data_dir = CURRENT_PATH / "data" / "ml-1m" / "binary"
+def _ratings_time_rank():
+    """Read in ratings file and rank items according to timestamp group by users"""
+    ratings = pd.read_csv(
+        path.ml1m_ratings,
+        sep="::",
+        header=None,
+        names=[col.user_id, col.movie_id, col.rating, col.timestamp],
+        dtype={
+            col.user_id: np.int32,
+            col.movie_id: np.int32,
+            col.rating: np.float32,
+            col.timestamp: np.int64,
+        },
+        engine="python",
+        encoding="ISO-8859-1",
+    )
 
-        self.n_users, self.n_items = torch.load(self.data_dir / 'ml-1m-train.pt').size()
-        self.train_sparse = None
-        self.train_score = None
-        self.test_users = None
-        self.test_items = None
-        self.test_labels = None
+    ratings[col.user_code] = ratings[col.user_id].astype("category").cat.codes
+    ratings[col.movie_code] = ratings[col.movie_id].astype("category").cat.codes
 
-        self.train_ds = None
-        self.test_ds = None
+    ratings = ratings.assign(
+        rank=ratings.groupby(col.user_code)[col.timestamp]
+        .rank(method="first", ascending=False)
+        .sub(1)
+    )
 
-        self.train_steps = None
-        self.test_steps = None
-
-    def prepare_data(self):
-        pass
-
-    def setup(self, stage: Optional[str] = None):
-        if stage == "fit" or stage is None:
-            # Train data
-            self.train_sparse = torch.load(self.data_dir / 'ml-1m-train.pt')
-            self.train_score = torch.sparse.sum(self.train_sparse, dim=0)
-
-            # Test data
-            test_pos = torch.load(self.data_dir / 'ml-1m-test-pos.pt')
-            test_neg = torch.load(self.data_dir / 'ml-1m-test-neg.pt')
-
-            test_items = []
-            for u in range(self.n_users):
-                items = torch.cat((test_pos[u, 1].view(1), test_neg[u]))
-                test_items.append(items)
-
-            self.test_items = torch.vstack(test_items)
-            self.test_labels = torch.zeros(self.test_items.shape)
-            self.test_labels[:, 0] += 1
-            self.test_users = test_pos[:, 0].view(-1, 1).repeat(1, self.test_items.shape[1])
-
-        if stage == "test" or stage is None:
-            pass
-
-    def _negative_sampling(self):
-        pos = self.train_sparse._indices().T
-        user_ids = torch.unique(pos[:, 0])
-
-        users = []
-        items = []
-        labels = []
-        for user in user_ids:
-            pos_items = pos[pos[:, 0] == user, 1]
-            n_pos_items = pos_items.shape[0]
-
-            # Sample negative items
-            n_neg_items = self.n_negative_samples * n_pos_items
-            sampling_prob = torch.ones(self.n_items)
-            sampling_prob[pos_items] = 0  # Don't sample positive items
-            neg_items = torch.multinomial(sampling_prob, n_neg_items, replacement=True)
-
-            users.append(user.repeat(n_pos_items + n_neg_items))
-            items.append(torch.cat([pos_items, neg_items]))
-            labels.append(torch.cat([torch.ones(n_pos_items), torch.zeros(n_neg_items)]))
-
-        users = torch.cat(users)
-        items = torch.cat(items)
-        labels = torch.cat(labels)
-
-        return users, items, labels
-
-    def train_dataloader(self):
-        users, items, labels = self._negative_sampling()
-        self.train_ds = BinaryML1mDataset(users, items, labels)
-
-        train_dl = DataLoader(self.train_ds, batch_size=self.batch_size, shuffle=True, num_workers=self.n_workers)
-        self.train_steps = len(train_dl)
-
-        return train_dl
-
-    def val_dataloader(self):
-        self.test_ds = BinaryML1mDataset(self.test_users, self.test_items, self.test_labels)
-
-        test_dl = DataLoader(self.test_ds, batch_size=512, shuffle=False, num_workers=self.n_workers)
-        self.test_steps = len(test_dl)
-
-        return test_dl
+    return ratings
 
 
-class RatingML1mDataModule(pl.LightningDataModule):
-    def __init__(self, batch_size=128, n_workers=8):
-        super().__init__()
-        self.batch_size = batch_size
-        self.n_workers = n_workers
-        self.data_dir = CURRENT_PATH / "data" / "ml-1m"
+def split_data_loo(n_test_codes=100):
+    """Split data into train and test sets, with loo (leave one out, i.e. latest one) logic"""
+    ratings = _ratings_time_rank()
+    train_loo, test_loo = ratings.query("rank > 0"), ratings.query("rank == 0")
 
-        self.ratings_sparse = self._get_sparse_ratings()
-        self.n_users, self.n_items = self.ratings_sparse.size()
+    # Add more test codes
+    user_movie_matrix = scs.csr_matrix(
+        (ratings[col.rating], (ratings[col.user_code], ratings[col.movie_code]))
+    )
+    negative_samples = user_movie_matrix.sum(axis=0).repeat(
+        user_movie_matrix.shape[0], axis=0
+    )
+    negative_samples[user_movie_matrix.nonzero()] = -1
+    negative_samples = np.asarray(np.argsort(negative_samples, axis=1)[:, ::-1])[
+        :, :500
+    ]
+    negative_codes = np.take_along_axis(
+        negative_samples,
+        np.random.randint(
+            0, negative_samples.shape[1], (negative_samples.shape[0], n_test_codes - 1)
+        ),
+        1,
+    )
+    test_loo = test_loo.assign(negative_code=negative_codes.tolist())
 
-        self.train_data = None
-        self.test_data = None
+    # Save dataframe to disk
+    train_loo.to_parquet(path.ml1m_train_loo, index=False)
+    test_loo.to_parquet(path.ml1m_test_loo, index=False)
 
-        self.train_ds = None
-        self.test_ds = None
-
-    def prepare_data(self):
-        pass
-
-    def setup(self, stage: Optional[str] = None):
-        if stage == "fit" or stage is None:
-            idx, values = self.ratings_sparse.indices().T, self.ratings_sparse.values()
-            train_idx, test_idx, train_values, test_values = train_test_split(idx, values, test_size=0.1)
-            self.train_data = torch.sparse_coo_tensor(train_idx.T, train_values).coalesce().to_dense()
-            self.test_data = torch.sparse_coo_tensor(test_idx.T, test_values).coalesce().to_dense()
-
-        if stage == "test" or stage is None:
-            pass
-
-    def _get_sparse_ratings(self):
-        ratings = pd.read_csv(self.data_dir / "ratings.dat",
-                              sep="::",
-                              header=None,
-                              names=['user_id', 'movie_id', 'rating', 'timestamp'],
-                              dtype={'user_id': np.int32, 'movie_id': np.int32,
-                                     'ratings': np.float32, 'timestamp': np.int64},
-                              engine='python',
-                              encoding="ISO-8859-1")
-
-        idx = ratings[['user_id', 'movie_id']].sub(1).values.T
-        values = ratings['rating'].values
-        sparse_ratings = torch.sparse_coo_tensor(idx, values).coalesce()
-
-        return sparse_ratings
-
-    def train_dataloader(self):
-        self.train_ds = RatingML1mDataset(self.train_data)
-
-        return DataLoader(self.train_ds, batch_size=self.batch_size, shuffle=True, num_workers=self.n_workers)
-
-    def val_dataloader(self):
-        self.test_ds = RatingML1mDataset(self.test_data)
-
-        return DataLoader(self.test_ds, batch_size=self.batch_size * 2, shuffle=False, num_workers=self.n_workers)
+    # Save npz to disk
+    inputs = scs.csr_matrix(
+        (train_loo[col.rating], (train_loo[col.user_code], train_loo[col.movie_code]))
+    )
+    inputs[inputs.nonzero()] = 1
+    labels = test_loo[[col.movie_code]].to_numpy()
+    test_codes = np.hstack([labels, negative_codes])
+    test_labels = np.zeros(shape=test_codes.shape, dtype=float)
+    test_labels[:, 0] = 1
+    npz = {
+        "inputs": inputs,
+        "labels": labels,
+        "test_codes": test_codes,
+        "test_labels": test_labels,
+        "negative_samples": negative_samples,
+    }
+    np.savez(path.ml1m_implicit_npz, data=npz)
 
 
-class BinaryML1mDataset(Dataset):
-    def __init__(self, users, items, labels=None):
-        assert users.shape == items.shape
-        if labels is not None:
-            assert users.shape == labels.shape
-        self.users = users
-        self.items = items
-        self.labels = labels
+def load_implicit_data():
+    data = np.load(path.ml1m_implicit_npz, allow_pickle=True)["data"].item()
 
-    def __len__(self):
-        return self.users.shape[0]
+    return data
 
-    def __getitem__(self, idx):
-        if self.labels is not None:
-            return self.users[idx], self.items[idx], self.labels[idx]
+
+def train_dataloader(
+    train_inputs: scs.csr_matrix,
+    batch_size: int = 64,
+    device: str = "cuda",
+    add_user_codes: bool = True,
+    negative_samples: np.ndarray = None,
+    n_negatives: int = None,
+) -> torch.utils.data.DataLoader:
+    """
+    Return train dataloader given inputs
+    If negative_samples and n_negatives are provided, return train_dataloader with negative sampling
+    """
+    # Negative sampling train data
+    if negative_samples is not None:
+        assert (
+            n_negatives is not None
+        ), "Must provide n_negatives if negative samples is not None"
+        row_positives, col_positives = train_inputs.nonzero()
+        row_negatives = row_positives.repeat(n_negatives)
+        col_negatives = np.random.randint(
+            0, negative_samples.shape[1], row_negatives.shape[0]
+        )
+
+        train_negatives = negative_samples[row_negatives, col_negatives].reshape(
+            -1, n_negatives
+        )
+        # Add user indices/codes if add_user_codes is True
+        if add_user_codes:
+            train_positives = np.vstack([row_positives, col_positives]).T
         else:
-            return self.users[idx], self.items[idx], None
+            train_positives = col_positives.reshape(-1, 1)
+        train_data = np.hstack(
+            [
+                train_positives,
+                train_negatives,
+            ]
+        )
+    # Just use sparse input as train data
+    else:
+        train_data = train_inputs.toarray()
+        if add_user_codes:
+            train_data = np.hstack(
+                [
+                    np.arange(train_data.shape[0]).reshape(-1, 1),
+                    train_data,
+                ]
+            )
+
+    dl = torch.utils.data.DataLoader(
+        train_data,
+        batch_size=batch_size,
+        shuffle=True,
+        generator=torch.Generator(device=device),
+    )
+
+    return dl
 
 
-class RatingML1mDataset(Dataset):
-    def __init__(self, data):
-        self.data = data.T.float()
+class ImplicitData:
+    def __init__(
+        self,
+        train_inputs: scs.csr_matrix,
+        test_inputs: np.ndarray,
+        train_batch_size: int = 64,
+        test_batch_size: int = 1024,
+        add_user_codes: bool = True,
+        device: str = "cuda",
+        negative_samples: np.ndarray = None,
+        n_negatives: int = None,
+    ):
+        self.train_inputs = train_inputs
+        self.test_inputs = test_inputs
+        self.train_batch_size = train_batch_size
+        self.test_batch_size = test_batch_size
+        self.device = device
+        self.add_user_codes = add_user_codes
+        self.negative_samples = negative_samples
+        self.n_negatives = n_negatives
 
-    def __len__(self):
-        return self.data.size()[0]
+        self._train_dataloader = None
+        self._test_dataloader = None
 
-    def __getitem__(self, idx):
-        return self.data[idx]
+    @property
+    def train_dataloader(self):
+        if self.negative_samples is not None or self._train_dataloader is None:
+            self._train_dataloader = train_dataloader(
+                self.train_inputs,
+                self.train_batch_size,
+                self.device,
+                self.add_user_codes,
+                self.negative_samples,
+                self.n_negatives,
+            )
+
+        return self._train_dataloader
+
+    @property
+    def test_dataloader(self):
+        if self._test_dataloader is None:
+            self._test_dataloader = torch.utils.data.DataLoader(
+                self.test_inputs,
+                batch_size=self.test_batch_size,
+                generator=torch.Generator(device=self.device),
+            )
+
+        return self._test_dataloader
+
+
+if __name__ == "__main__":
+    split_data_loo()

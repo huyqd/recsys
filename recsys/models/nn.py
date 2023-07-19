@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+import torch.nn.functional as F
 
 
 class GMF(nn.Module):
@@ -34,6 +35,11 @@ class GMF(nn.Module):
             return self._forward_pointwise(users, items)
         else:
             return self._forward(users, items)
+
+    def loss(self, users, items, labels, pointwise=False):
+        outputs = self.forward(users, items, pointwise)
+
+        return F.binary_cross_entropy_with_logits(outputs, labels)
 
     def _forward(self, users, items=None):
         items = items if items is not None else torch.arange(self.n_items)
@@ -107,6 +113,11 @@ class MLP(nn.Module):
             return self._forward_pointwise(users, items)
         else:
             return self._forward(users, items)
+
+    def loss(self, users, items, labels, pointwise=False):
+        outputs = self.forward(users, items, pointwise)
+
+        return F.binary_cross_entropy_with_logits(outputs, labels)
 
     def _forward(self, users, items=None):
         items = items if items is not None else torch.arange(self.n_items)
@@ -199,6 +210,11 @@ class NeuMF(nn.Module):
             return self._forward_pointwise(users, items)
         else:
             return self._forward(users, items)
+
+    def loss(self, users, items, labels, pointwise=False):
+        outputs = self.forward(users, items, pointwise)
+
+        return F.binary_cross_entropy_with_logits(outputs, labels)
 
     def _forward(self, users, items=None):
         # GMF
