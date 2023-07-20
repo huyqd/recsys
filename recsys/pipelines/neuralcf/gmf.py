@@ -4,11 +4,12 @@ import torch.optim as optim
 from tqdm import tqdm
 
 from recsys.dataset import load_implicit_data, train_dataloader
-from recsys.metrics import ndcg_score, hr_score
-from recsys.models.nn import NeuMF
+from recsys.metrics import compute_metrics
+from recsys.models.neuralcf import GMF
+from recsys.utils import topk
 
 
-def train_neumf(data, k=10):
+def train_gmf(data, k=10):
     device = "cuda" if torch.cuda.is_available() else "cpu"
     torch.set_default_device(device)
     (
@@ -32,7 +33,7 @@ def train_neumf(data, k=10):
         generator=torch.Generator(device=device),
     )
 
-    model = NeuMF(*inputs.shape, 128).to(device)
+    model = GMF(*inputs.shape, 128).to(device)
 
     # Define your model
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
@@ -75,9 +76,7 @@ def train_neumf(data, k=10):
 
         epoch_loss = running_losses / len(train_data)
 
-        # Print the loss for each epoch
-        # if epoch % 10 == 0 or epoch == num_epochs - 1:
-        retrieval = []
+        scores = []
         model.eval()
         with torch.no_grad():
             for iter_ in tqdm(
@@ -85,24 +84,19 @@ def train_neumf(data, k=10):
             ):
                 iter_ = iter_.squeeze(1)
                 ucodes, mcodes = iter_[:, 0], iter_[:, 1:]
-                scores = model(ucodes, mcodes)
-                retrieval.append(scores.cpu().numpy())
+                scores.append(model(ucodes, mcodes).cpu().numpy())
 
-            y_pred = np.take_along_axis(
-                test_codes,
-                np.argsort(np.vstack(retrieval), axis=1)[:, ::-1],
-                axis=1,
-            )[:, :k]
+        scores = np.vstack(scores)
+        y_pred = topk(scores, array=test_codes, k=k)
 
-        print(
-            f"epoch [{epoch + 1}/{num_epochs}], loss: {epoch_loss:.4f}, ndcg: {ndcg_score(labels, y_pred):.4f}, hr: {hr_score(labels, y_pred):.4f}"
-        )
+        print(f"epoch [{epoch + 1}/{num_epochs}], loss: {epoch_loss:.4f}")
+        _ = compute_metrics(labels, y_pred)
 
 
-def run_neumf():
+def run_gmf():
     data = load_implicit_data()
-    train_neumf(data)
+    train_gmf(data)
 
 
 if __name__ == "__main__":
-    run_neumf()
+    run_gmf()
