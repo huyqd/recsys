@@ -5,7 +5,7 @@ from tqdm import tqdm
 
 from recsys.dataset import load_implicit_data
 from recsys.metrics import ndcg_score, hr_score
-from recsys.models.nn import NeuMF
+from recsys.models.neuralcf import NeuMF
 
 
 def train_dataloader(train_inputs, negative_samples, n_negatives, device):

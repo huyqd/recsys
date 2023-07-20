@@ -27,3 +27,13 @@ def hr_score(true, pred):
     rel = np.array([np.isin(true[i], pred[i]) for i in range(true.shape[0])])
 
     return rel.mean()
+
+
+def compute_metrics(true, pred):
+    """Compute ndcg and hr"""
+    k = pred.shape[1]
+    ndcg = ndcg_score(true, pred)
+    hr = hr_score(true, pred)
+    print(f"metrics - ndcg@{k}: {ndcg:.4f}, hr@{k}: {hr:.4f}")
+
+    return ndcg, hr

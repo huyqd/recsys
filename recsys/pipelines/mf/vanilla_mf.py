@@ -1,19 +1,20 @@
-import numpy as np
 import torch
-import torch.optim as optim
+from torch import optim as optim
+from torch.nn import functional as F
 from tqdm import tqdm
 
-from recsys.dataset import load_implicit_data, train_dataloader
-from recsys.metrics import ndcg_score, hr_score
-from recsys.models.nn import GMF
+from recsys.dataset import train_dataloader, load_implicit_data
+from recsys.metrics import compute_metrics
+from recsys.models.matrix_factorization import VanillaMF
+from recsys.utils import topk
 
 
-def train_gmf(data, k=10):
+def train_vanillamf(data, k=10):
     device = "cuda" if torch.cuda.is_available() else "cpu"
     torch.set_default_device(device)
     (
         inputs,
-        labels,
+        y_true,
         test_codes,
         negative_samples,
     ) = (
@@ -23,16 +24,7 @@ def train_gmf(data, k=10):
         data["negative_samples"],
     )
 
-    test_dataloader = torch.utils.data.DataLoader(
-        np.hstack(
-            [np.arange(labels.shape[0], dtype=int).reshape(-1, 1), test_codes],
-            dtype=int,
-        ),
-        batch_size=1024,
-        generator=torch.Generator(device=device),
-    )
-
-    model = GMF(*inputs.shape, 128).to(device)
+    model = VanillaMF(*inputs.shape, 128).to(device)
 
     # Define your model
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
@@ -75,34 +67,19 @@ def train_gmf(data, k=10):
 
         epoch_loss = running_losses / len(train_data)
 
-        # Print the loss for each epoch
-        # if epoch % 10 == 0 or epoch == num_epochs - 1:
-        retrieval = []
         model.eval()
         with torch.no_grad():
-            for iter_ in tqdm(
-                test_dataloader, desc="test loop", position=2, leave=False
-            ):
-                iter_ = iter_.squeeze(1)
-                ucodes, mcodes = iter_[:, 0], iter_[:, 1:]
-                scores = model(ucodes, mcodes)
-                retrieval.append(scores.cpu().numpy())
+            scores = model(torch.arange(inputs.shape[0])).cpu().numpy()
+            y_pred = topk(scores, subset=test_codes, k=k)
 
-            y_pred = np.take_along_axis(
-                test_codes,
-                np.argsort(np.vstack(retrieval), axis=1)[:, ::-1],
-                axis=1,
-            )[:, :k]
-
-        print(
-            f"epoch [{epoch + 1}/{num_epochs}], loss: {epoch_loss:.4f}, ndcg: {ndcg_score(labels, y_pred):.4f}, hr: {hr_score(labels, y_pred):.4f}"
-        )
+        print(f"epoch [{epoch + 1}/{num_epochs}], loss: {epoch_loss:.4f}")
+        _ = compute_metrics(y_true, y_pred)
 
 
-def run_gmf():
+def run_vanillamf():
     data = load_implicit_data()
-    train_gmf(data)
+    train_vanillamf(data)
 
 
 if __name__ == "__main__":
-    run_gmf()
+    run_vanillamf()

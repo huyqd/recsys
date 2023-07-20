@@ -1,11 +1,12 @@
 import numpy as np
 import torch
+import torch.nn as nn
 import torch.optim as optim
 from tqdm import tqdm
 
-from recsys.dataset import load_implicit_data
+from recsys.dataset import load_implicit_data, ImplicitData
 from recsys.metrics import ndcg_score, hr_score
-from recsys.models.nn import MLP
+from recsys.models.neuralcf import GMF
 
 
 def train_dataloader(train_inputs, negative_samples, n_negatives, device):
@@ -45,7 +46,7 @@ def train_dataloader(train_inputs, negative_samples, n_negatives, device):
     return train_data
 
 
-def train_mlp(data, k=10):
+def train_gmf(data, k=10):
     device = "cuda" if torch.cuda.is_available() else "cpu"
     torch.set_default_device(device)
     (
@@ -70,7 +71,7 @@ def train_mlp(data, k=10):
         batch_size=2048,
         generator=torch.Generator(device=device),
     )
-    model = MLP(*inputs.shape, 128).to(device)
+    model = GMF(*inputs.shape, 128).to(device)
 
     # Define your model
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
@@ -127,10 +128,10 @@ def train_mlp(data, k=10):
         )
 
 
-def run_mlp():
+def run_gmf():
     data = load_implicit_data()
-    train_mlp(data)
+    train_gmf(data)
 
 
 if __name__ == "__main__":
-    run_mlp()
+    run_gmf()

@@ -5,7 +5,7 @@ from tqdm.notebook import tqdm
 
 from recsys.dataset import load_implicit_data
 from recsys.metrics import ndcg_score, hr_score
-from recsys.models.ae import MultiVAE
+from recsys.models.autoencoder import MultiVAE
 
 device = "cuda"
 torch.set_default_device(device)
