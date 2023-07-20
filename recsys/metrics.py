@@ -34,6 +34,6 @@ def compute_metrics(true, pred):
     k = pred.shape[1]
     ndcg = ndcg_score(true, pred)
     hr = hr_score(true, pred)
-    print(f" ndcg@{k}: {ndcg:.4f}, hr@{k}: {hr:.4f}")
+    print(f"metrics - ndcg@{k}: {ndcg:.4f}, hr@{k}: {hr:.4f}")
 
     return ndcg, hr

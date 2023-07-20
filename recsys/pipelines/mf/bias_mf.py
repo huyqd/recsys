@@ -1,15 +1,14 @@
 import torch
 from torch import optim as optim
-from torch.nn import functional as F
 from tqdm import tqdm
 
 from recsys.dataset import train_dataloader, load_implicit_data
 from recsys.metrics import compute_metrics
-from recsys.models.matrix_factorization import VanillaMF
+from recsys.models.matrix_factorization import BiasMF
 from recsys.utils import topk
 
 
-def train_vanillamf(data, k=10):
+def train_biasmf(data, k=10):
     device = "cuda" if torch.cuda.is_available() else "cpu"
     torch.set_default_device(device)
     (
@@ -24,7 +23,7 @@ def train_vanillamf(data, k=10):
         data["negative_samples"],
     )
 
-    model = VanillaMF(*inputs.shape, 128).to(device)
+    model = BiasMF(*inputs.shape, 128).to(device)
 
     # Define your model
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
@@ -76,10 +75,10 @@ def train_vanillamf(data, k=10):
         _ = compute_metrics(y_true, y_pred)
 
 
-def run_vanillamf():
+def run_biasmf():
     data = load_implicit_data()
-    train_vanillamf(data)
+    train_biasmf(data)
 
 
 if __name__ == "__main__":
-    run_vanillamf()
+    run_biasmf()

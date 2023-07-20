@@ -4,8 +4,6 @@ import torch.nn.functional as F
 
 
 class BiasMF(nn.Module):
-    """A matrix factorization model trained using SGD and negative sampling."""
-
     def __init__(self, n_users, n_items, embedding_dim):
         super().__init__()
         self.n_users = n_users
@@ -24,12 +22,26 @@ class BiasMF(nn.Module):
     def forward(self, users, items=None):
         if items is None:
             items = torch.arange(self.n_items)
-        return (
-            self.item_bias[items]
-            + self.user_bias[users].view(-1, 1)
-            + self.bias
-            + self.user_embedding(users).squeeze(1).matmul(self.item_embedding(items).T)
-        )
+            outputs = (
+                self.item_bias
+                + self.user_bias[users].view(-1, 1)
+                + self.bias
+                + self.user_embedding(users)
+                .squeeze(1)
+                .matmul(self.item_embedding(items).T)
+            )
+        else:
+            outputs = (
+                self.item_bias[items]
+                + self.user_bias[users].view(-1, 1)
+                + self.bias
+                + self.user_embedding(users)
+                .unsqueeze(1)
+                .mul(self.item_embedding(items))
+                .sum(dim=-1)
+            )
+
+        return outputs
 
     def loss(self, users, items, labels):
         outputs = self(users, items)
