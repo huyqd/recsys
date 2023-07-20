@@ -5,7 +5,7 @@ from tqdm.notebook import tqdm
 
 from recsys.dataset import load_implicit_data
 from recsys.metrics import ndcg_score, hr_score
-from recsys.models.ae import MultiDAE
+from recsys.models.autoencoder import MultiDAE
 
 device = "cuda"
 torch.set_default_device(device)
@@ -33,11 +33,6 @@ test_data = torch.utils.data.DataLoader(
     batch_size=512,
     generator=torch.Generator(device=device),
 )
-# %%
-decoder_dims = [200, 600, inputs.shape[1]]
-encoder_dims = decoder_dims[::-1]
-encoder_dims[-1] *= 2
-
 decoder_dims = [200, inputs.shape[1]]
 encoder_dims = decoder_dims[::-1]
 
