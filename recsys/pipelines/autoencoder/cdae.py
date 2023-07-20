@@ -1,17 +1,15 @@
 import numpy as np
-import pandas as pd
-import scipy.sparse as scs
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from tqdm.notebook import tqdm
 
 from recsys.dataset import load_implicit_data
-from recsys.metrics import ndcg_score, hr_score
-from recsys.models.ae import CDAE
-from recsys.utils import col
+from recsys.metrics import compute_metrics
+from recsys.models.autoencoder import CDAE
+from recsys.utils import topk
 
-device = "cuda"
+device = "cuda" if torch.cuda.is_available() else "cpu"
 torch.set_default_device(device)
 data = load_implicit_data()
 (
@@ -55,11 +53,11 @@ max_norm = 1.0
 
 # Training loop
 train_losses = []
-for epoch in tqdm(range(num_epochs)):
+for epoch in tqdm(range(num_epochs), position=0, desc="epoch loop", leave=False):
     model.train()
     running_losses = 0
 
-    for iter_ in tqdm(train_data):
+    for iter_ in tqdm(train_data, position=1, desc="train loop", leave=False):
         uids, mids = iter_[:, 0], iter_[:, 1:]
         optimizer.zero_grad()
         outputs = model(uids.int(), mids.float())
@@ -76,23 +74,16 @@ for epoch in tqdm(range(num_epochs)):
 
     epoch_loss = running_losses / len(train_data)
 
-    retrieval = []
+    scores = []
     model.eval()
     with torch.no_grad():
         for iter_ in test_data:
             iter_ = iter_.squeeze(1)
             uids, mids = iter_[:, 0], iter_[:, 1:]
-            scores = model(uids.int(), mids.float())
-            retrieval.append(scores.cpu().numpy())
+            scores.append(model(uids.int(), mids.float()).cpu().numpy())
 
-        retrieval = np.take_along_axis(np.vstack(retrieval), test_codes, axis=1)
+    scores = np.vstack(scores)
+    y_pred = topk(scores, subset=test_codes, k=10)
 
-        y_pred = np.take_along_axis(
-            test_codes,
-            np.argsort(retrieval, axis=1)[:, ::-1],
-            axis=1,
-        )[:, :10]
-
-    print(
-        f"epoch [{epoch+1}/{num_epochs}], loss: {epoch_loss:.4f}, ndcg: {ndcg_score(y_true, y_pred):.4f}, hr: {hr_score(y_true, y_pred):.4f}"
-    )
+    print(f"epoch [{epoch + 1}/{num_epochs}], loss: {epoch_loss:.4f}")
+    _ = compute_metrics(y_true, y_pred)
