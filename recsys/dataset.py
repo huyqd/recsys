@@ -12,10 +12,15 @@ def _ratings_time_rank():
         path.ml1m_ratings,
         sep="::",
         header=None,
-        names=[col.user_id, col.movie_id, col.rating, col.timestamp],
+        names=[
+            col.user_id,
+            col.movie_id,
+            col.rating,
+            col.timestamp,
+        ],
         dtype={
             col.user_id: np.int32,
-            col.movie_id: np.int32,
+            col.movie_id: "category",
             col.rating: np.float32,
             col.timestamp: np.int64,
         },
@@ -23,8 +28,8 @@ def _ratings_time_rank():
         encoding="ISO-8859-1",
     )
 
-    ratings[col.user_code] = ratings[col.user_id].astype("category").cat.codes
-    ratings[col.movie_code] = ratings[col.movie_id].astype("category").cat.codes
+    ratings[col.user_code] = ratings[col.user_id].sub(1)
+    ratings[col.movie_code] = ratings[col.movie_id].cat.codes
 
     ratings = ratings.assign(
         rank=ratings.groupby(col.user_code)[col.timestamp]
@@ -35,9 +40,40 @@ def _ratings_time_rank():
     return ratings
 
 
+def _users():
+    users = pd.read_csv(
+        path.ml1m_users,
+        sep="::",
+        header=None,
+        names=[
+            col.user_id,
+            col.gender,
+            col.age,
+            col.occupation,
+            col.zipcode,
+        ],
+        dtype={
+            col.user_id: np.int32,
+            col.gender: "category",
+            col.age: "category",
+            col.occupation: np.int32,
+            col.zipcode: str,
+        },
+        engine="python",
+        encoding="ISO-8859-1",
+    )
+
+    users[col.user_id] = users[col.user_id].sub(1)
+    users[col.age] = users[col.age].cat.codes
+    users[col.gender] = users[col.gender].cat.codes
+
+    return users
+
+
 def split_data_loo(n_test_codes=100):
     """Split data into train and test sets, with loo (leave one out, i.e. latest one) logic"""
     ratings = _ratings_time_rank()
+    users = _users()
     train_loo, test_loo = ratings.query("rank > 0"), ratings.query("rank == 0")
 
     # Add more test codes
@@ -58,27 +94,24 @@ def split_data_loo(n_test_codes=100):
         ),
         1,
     )
-    test_loo = test_loo.assign(negative_code=negative_codes.tolist())
-
-    # Save dataframe to disk
-    train_loo.to_parquet(path.ml1m_train_loo, index=False)
-    test_loo.to_parquet(path.ml1m_test_loo, index=False)
 
     # Save npz to disk
-    inputs = scs.csr_matrix(
+    user_codes = test_loo[[col.user_code]].to_numpy()
+    test_labels = test_loo[[col.movie_code]].to_numpy()
+    test_codes = np.hstack([test_labels, negative_codes])
+    rating_matrix = scs.csr_matrix(
         (train_loo[col.rating], (train_loo[col.user_code], train_loo[col.movie_code]))
     )
-    inputs[inputs.nonzero()] = 1
-    labels = test_loo[[col.movie_code]].to_numpy()
-    test_codes = np.hstack([labels, negative_codes])
-    test_labels = np.zeros(shape=test_codes.shape, dtype=float)
-    test_labels[:, 0] = 1
+    implicit_matrix = rating_matrix.copy()
+    implicit_matrix[implicit_matrix.nonzero()] = 1
+    user_infos = users[[col.user_id, col.gender, col.age, col.occupation]].to_numpy()
     npz = {
-        "inputs": inputs,
-        "labels": labels,
-        "test_codes": test_codes,
-        "test_labels": test_labels,
+        "rating_matrix": scs.hstack([user_codes, rating_matrix]),
+        "implicit_matrix": scs.hstack([user_codes, implicit_matrix]),
+        "labels": test_labels,
+        "test_codes": np.hstack([user_codes, test_codes]),
         "negative_samples": negative_samples,
+        "user_infos": user_infos,
     }
     np.savez(path.ml1m_implicit_npz, data=npz)
 
