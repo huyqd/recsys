@@ -3,7 +3,7 @@ import torch
 import torch.optim as optim
 from tqdm import tqdm
 
-from recsys.dataset import load_implicit_data, train_dataloader
+from recsys.dataset import load_ml1m_data, train_dataloader
 from recsys.metrics import compute_metrics
 from recsys.models.neuralcf import MLP
 from recsys.utils import topk
@@ -94,7 +94,7 @@ def train_mlp(data, k=10):
 
 
 def run_mlp():
-    data = load_implicit_data()
+    data = load_ml1m_data()
     train_mlp(data)
 
 

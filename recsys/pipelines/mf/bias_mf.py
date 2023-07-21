@@ -2,7 +2,7 @@ import torch
 from torch import optim as optim
 from tqdm import tqdm
 
-from recsys.dataset import train_dataloader, load_implicit_data
+from recsys.dataset import train_dataloader, load_ml1m_data
 from recsys.metrics import compute_metrics
 from recsys.models.matrix_factorization import BiasMF
 from recsys.utils import topk
@@ -76,7 +76,7 @@ def train_biasmf(data, k=10):
 
 
 def run_biasmf():
-    data = load_implicit_data()
+    data = load_ml1m_data()
     train_biasmf(data)
 
 

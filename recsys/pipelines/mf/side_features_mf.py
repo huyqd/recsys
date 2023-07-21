@@ -2,13 +2,23 @@ import torch
 from torch import optim as optim
 from tqdm import tqdm
 
-from recsys.dataset import train_dataloader, load_implicit_data
+from recsys.dataset import train_dataloader, load_ml1m_data
 from recsys.metrics import compute_metrics
-from recsys.models.matrix_factorization import BiasMF
+from recsys.models.matrix_factorization import SideFeaturesMF
 from recsys.utils import topk
 
 
-def train_biasmf(data, k=10):
+def load_data():
+    data = load_ml1m_data()
+    pass
+
+
+def load_model():
+    model = SideFeaturesMF()
+    pass
+
+
+def train(data, k=10):
     device = "cuda" if torch.cuda.is_available() else "cpu"
     torch.set_default_device(device)
     (
@@ -75,10 +85,10 @@ def train_biasmf(data, k=10):
         _ = compute_metrics(y_true, y_pred)
 
 
-def run_biasmf():
-    data = load_implicit_data()
-    train_biasmf(data)
+def run():
+    data = load_ml1m_data()
+    train(data)
 
 
 if __name__ == "__main__":
-    run_biasmf()
+    run()

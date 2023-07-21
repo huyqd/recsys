@@ -116,7 +116,7 @@ def split_data_loo(n_test_codes=100):
     np.savez(path.ml1m_npz, data=npz)
 
 
-def load_implicit_data():
+def load_ml1m_data():
     data = np.load(path.ml1m_npz, allow_pickle=True)["data"].item()
 
     return data

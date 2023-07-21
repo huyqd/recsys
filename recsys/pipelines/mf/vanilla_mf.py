@@ -3,7 +3,7 @@ from torch import optim as optim
 from torch.nn import functional as F
 from tqdm import tqdm
 
-from recsys.dataset import train_dataloader, load_implicit_data
+from recsys.dataset import train_dataloader, load_ml1m_data
 from recsys.metrics import compute_metrics
 from recsys.models.matrix_factorization import VanillaMF
 from recsys.utils import topk
@@ -77,7 +77,7 @@ def train_vanillamf(data, k=10):
 
 
 def run_vanillamf():
-    data = load_implicit_data()
+    data = load_ml1m_data()
     train_vanillamf(data)
 
 

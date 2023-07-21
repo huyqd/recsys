@@ -4,14 +4,14 @@ import torch.nn as nn
 import torch.optim as optim
 from tqdm.notebook import tqdm
 
-from recsys.dataset import load_implicit_data
+from recsys.dataset import load_ml1m_data
 from recsys.metrics import compute_metrics
 from recsys.models.autoencoder import CDAE
 from recsys.utils import topk
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 torch.set_default_device(device)
-data = load_implicit_data()
+data = load_ml1m_data()
 (
     inputs,
     y_true,

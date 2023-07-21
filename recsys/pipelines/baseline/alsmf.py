@@ -1,6 +1,6 @@
 import implicit
 
-from recsys.dataset import load_implicit_data
+from recsys.dataset import load_ml1m_data
 from recsys.metrics import compute_metrics
 from recsys.utils import topk
 
@@ -28,7 +28,7 @@ def train_alsmf(data, k=10):
 
 
 def run_alsmf():
-    data = load_implicit_data()
+    data = load_ml1m_data()
     train_alsmf(data)
 
 
