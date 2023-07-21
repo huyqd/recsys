@@ -27,10 +27,7 @@ class path:
     ml1m_ratings = ml1m / "ratings.dat"
     ml1m_users = ml1m / "users.dat"
     ml1m_movies = ml1m / "movies.dat"
-    ml1m_split = ml1m / "split"
-    ml1m_train_loo = ml1m_split / "train_loo.parquet"
-    ml1m_test_loo = ml1m_split / "test_loo.parquet"
-    ml1m_npz = ml1m_split / "ml1m.npz"
+    ml1m_npz = ml1m / "ml1m.npz"
 
 
 def topk(scores, array=None, subset=None, k=10):
