@@ -30,7 +30,7 @@ class path:
     ml1m_split = ml1m / "split"
     ml1m_train_loo = ml1m_split / "train_loo.parquet"
     ml1m_test_loo = ml1m_split / "test_loo.parquet"
-    ml1m_implicit_npz = ml1m_split / "implicit.npz"
+    ml1m_npz = ml1m_split / "ml1m.npz"
 
 
 def topk(scores, array=None, subset=None, k=10):

@@ -113,11 +113,11 @@ def split_data_loo(n_test_codes=100):
         "negative_samples": negative_samples,
         "user_infos": user_infos,
     }
-    np.savez(path.ml1m_implicit_npz, data=npz)
+    np.savez(path.ml1m_npz, data=npz)
 
 
 def load_implicit_data():
-    data = np.load(path.ml1m_implicit_npz, allow_pickle=True)["data"].item()
+    data = np.load(path.ml1m_npz, allow_pickle=True)["data"].item()
 
     return data
 
