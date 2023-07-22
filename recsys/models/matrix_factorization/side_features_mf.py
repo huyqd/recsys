@@ -56,7 +56,7 @@ class SideFeaturesMF(nn.Module):
     def loss(self, inputs):
         users, items, occupations, labels = (
             inputs["user_code"],
-            inputs["movie_code"],
+            inputs["item_code"],
             inputs["user_occupation"],
             inputs["label"],
         )

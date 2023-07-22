@@ -150,112 +150,71 @@ def create_negative_sampled_train_data(train_inputs, negative_samples, n_negativ
     return train_data, train_labels
 
 
-def train_dataloader(
-    train_inputs: scs.csr_matrix,
-    batch_size: int = 64,
-    device: str = "cuda",
-    add_user_codes: bool = True,
-    negative_samples: np.ndarray = None,
-    n_negatives: int = None,
-) -> torch.utils.data.DataLoader:
-    """
-    Return train dataloader given inputs
-    If negative_samples and n_negatives are provided, return train_dataloader with negative sampling
-    """
-    # Negative sampling train data
-    if negative_samples is not None:
-        assert (
-            n_negatives is not None
-        ), "Must provide n_negatives if negative samples is not None"
-        row_positives, col_positives = train_inputs.nonzero()
-        row_negatives = row_positives.repeat(n_negatives)
-        col_negatives = np.random.randint(
-            0, negative_samples.shape[1], row_negatives.shape[0]
-        )
+class Ml1mDataset(torch.utils.data.Dataset):
+    def __init__(self, data: dict):
+        self.data = data
+        self.length = self.data.pop("length")
 
-        train_negatives = negative_samples[row_negatives, col_negatives].reshape(
-            -1, n_negatives
-        )
-        # Add user indices/codes if add_user_codes is True
-        if add_user_codes:
-            train_positives = np.vstack([row_positives, col_positives]).T
-        else:
-            train_positives = col_positives.reshape(-1, 1)
-        train_data = np.hstack(
-            [
-                train_positives,
-                train_negatives,
-            ]
-        )
-    # Just use sparse input as train data
-    else:
-        train_data = train_inputs.toarray()
-        if add_user_codes:
-            train_data = np.hstack(
-                [
-                    np.arange(train_data.shape[0]).reshape(-1, 1),
-                    train_data,
-                ]
-            )
+    def __len__(self):
+        return self.length
 
-    dl = torch.utils.data.DataLoader(
-        train_data,
-        batch_size=batch_size,
-        shuffle=True,
-        generator=torch.Generator(device=device),
-    )
+    def __getitem__(self, idx):
+        items = {key: val[idx] for key, val in self.data.items()}
 
-    return dl
+        return items
 
 
 class ImplicitData:
-    def __init__(
+    def __init__(self, data: dict):
+        self.implicit_matrix = data["implicit_matrix"]
+        self.test_codes = data["test_codes"]
+        self.test_labels = data["test_labels"]
+        self.negative_samples = data["negative_samples"]
+        self.user_infos = data["user_infos"]
+        self.n_users, self.n_items = self.implicit_matrix.shape
+        self.n_occupations = np.unique(self.user_infos[:, -1]).shape[0]
+
+    def create_negative_sampled_train_dataloader(
         self,
-        train_inputs: scs.csr_matrix,
-        test_inputs: np.ndarray,
-        train_batch_size: int = 64,
-        test_batch_size: int = 1024,
-        add_user_codes: bool = True,
-        device: str = "cuda",
-        negative_samples: np.ndarray = None,
-        n_negatives: int = None,
+        n_negatives=4,
+        batch_size=512,
+        device="cpu",
     ):
-        self.train_inputs = train_inputs
-        self.test_inputs = test_inputs
-        self.train_batch_size = train_batch_size
-        self.test_batch_size = test_batch_size
-        self.device = device
-        self.add_user_codes = add_user_codes
-        self.negative_samples = negative_samples
-        self.n_negatives = n_negatives
+        train_data, train_labels = create_negative_sampled_train_data(
+            self.implicit_matrix,
+            self.negative_samples,
+            n_negatives,
+        )
+        user_occupations = self.user_infos[train_data[:, 0], -1]
+        data_dict = {
+            "user_code": train_data[:, 0],
+            "item_code": train_data[:, 1:],
+            "user_occupation": user_occupations,
+            "label": train_labels,
+            "length": train_data.shape[0],
+        }
+        dataset = Ml1mDataset(data_dict)
 
-        self._train_dataloader = None
-        self._test_dataloader = None
+        return torch.utils.data.DataLoader(
+            dataset,
+            batch_size=batch_size,
+            shuffle=True,
+            generator=torch.Generator(device=device),
+        )
 
-    @property
-    def train_dataloader(self):
-        if self.negative_samples is not None or self._train_dataloader is None:
-            self._train_dataloader = train_dataloader(
-                self.train_inputs,
-                self.train_batch_size,
-                self.device,
-                self.add_user_codes,
-                self.negative_samples,
-                self.n_negatives,
-            )
+    def create_test_dataloader(self, batch_size=1024, device="cpu"):
+        data_dict = {
+            "user_code": np.arange(self.n_users),
+            "item_code": self.test_codes,
+            "length": self.test_codes.shape[0],
+        }
+        dataset = Ml1mDataset(data_dict)
 
-        return self._train_dataloader
-
-    @property
-    def test_dataloader(self):
-        if self._test_dataloader is None:
-            self._test_dataloader = torch.utils.data.DataLoader(
-                self.test_inputs,
-                batch_size=self.test_batch_size,
-                generator=torch.Generator(device=self.device),
-            )
-
-        return self._test_dataloader
+        return torch.utils.data.DataLoader(
+            dataset,
+            batch_size=batch_size,
+            generator=torch.Generator(device=device),
+        )
 
 
 if __name__ == "__main__":
