@@ -23,7 +23,12 @@ class SideFeaturesMF(nn.Module):
         self.item_bias = nn.Parameter(torch.randn(n_items), requires_grad=True)
         self.bias = nn.Parameter(torch.randn(1), requires_grad=True)
 
-    def forward(self, users, occupations, items=None):
+    def forward(
+        self,
+        users,
+        items,
+        occupations,
+    ):
         if items is None:
             items = torch.arange(self.n_items)
             outputs = (
@@ -48,7 +53,13 @@ class SideFeaturesMF(nn.Module):
 
         return outputs
 
-    def loss(self, users, items, occupations, labels):
+    def loss(self, inputs):
+        users, items, occupations, labels = (
+            inputs["user_code"],
+            inputs["movie_code"],
+            inputs["user_occupation"],
+            inputs["label"],
+        )
         outputs = self(users, items, occupations)
 
         return F.binary_cross_entropy_with_logits(outputs, labels)

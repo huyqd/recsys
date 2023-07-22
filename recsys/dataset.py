@@ -106,10 +106,13 @@ def split_data_loo(n_test_codes=100):
     implicit_matrix[implicit_matrix.nonzero()] = 1
     user_infos = users[[col.user_id, col.gender, col.age, col.occupation]].to_numpy()
     npz = {
-        "rating_matrix": scs.hstack([user_codes, rating_matrix]),
-        "implicit_matrix": scs.hstack([user_codes, implicit_matrix]),
-        "labels": test_labels,
-        "test_codes": np.hstack([user_codes, test_codes]),
+        # "rating_matrix": scs.hstack([user_codes, rating_matrix]),
+        "rating_matrix": rating_matrix,
+        # "implicit_matrix": scs.hstack([user_codes, implicit_matrix]),
+        "implicit_matrix": implicit_matrix,
+        # "test_codes": np.hstack([user_codes, test_codes]),
+        "test_codes": test_codes,
+        "test_labels": test_labels,
         "negative_samples": negative_samples,
         "user_infos": user_infos,
     }
@@ -120,6 +123,31 @@ def load_ml1m_data():
     data = np.load(path.ml1m_npz, allow_pickle=True)["data"].item()
 
     return data
+
+
+def create_negative_sampled_train_data(train_inputs, negative_samples, n_negatives):
+    row_positives, col_positives = train_inputs.nonzero()
+    row_negatives = row_positives.repeat(n_negatives)
+    col_negatives = np.random.randint(
+        0, negative_samples.shape[1], row_negatives.shape[0]
+    )
+
+    train_negatives = negative_samples[row_negatives, col_negatives].reshape(
+        -1, n_negatives
+    )
+
+    train_positives = np.vstack([row_positives, col_positives]).T
+    train_data = np.hstack(
+        [
+            train_positives,
+            train_negatives,
+        ]
+    )
+
+    train_labels = np.zeros((train_data.shape[0], n_negatives + 1), dtype=float)
+    train_labels[:, 0] = 1
+
+    return train_data, train_labels
 
 
 def train_dataloader(

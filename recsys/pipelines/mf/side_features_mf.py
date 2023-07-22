@@ -2,43 +2,69 @@ import torch
 from torch import optim as optim
 from tqdm import tqdm
 
-from recsys.dataset import train_dataloader, load_ml1m_data
+from recsys.dataset import (
+    train_dataloader,
+    load_ml1m_data,
+    create_negative_sampled_train_data,
+)
 from recsys.metrics import compute_metrics
 from recsys.models.matrix_factorization import SideFeaturesMF
 from recsys.utils import topk
+import numpy as np
+
+
+class Ml1mDataset(torch.utils.data.Dataset):
+    def __init__(self, data, infos, labels):
+        self.data = data
+        self.infos = infos
+        self.labels = labels
+        self.n_users = data.shape[0]
+        self.n_items = data.shape[1] - 1
+        self.n_occupations = np.unique(self.infos[:, -1]).shape[0]
+
+    def __len__(self):
+        return self.n_users
+
+    def __getitem__(self, idx):
+        items = {
+            "user_code": self.data[idx, 0],
+            "movie_code": self.data[idx, 1:],
+            "user_occupation": self.infos[idx, -1],
+            "label": self.labels[idx],
+        }
+
+        return items
 
 
 def load_data():
     data = load_ml1m_data()
-    pass
-
-
-def load_model():
-    model = SideFeaturesMF()
-    pass
-
-
-def train(data, k=10):
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    torch.set_default_device(device)
-    (
-        inputs,
-        y_true,
-        test_codes,
-        negative_samples,
-    ) = (
-        data["inputs"],
-        data["labels"],
-        data["test_codes"],
-        data["negative_samples"],
+    train_data, train_labels = create_negative_sampled_train_data(
+        data["implicit_matrix"], data["negative_samples"], 4
     )
 
-    model = BiasMF(*inputs.shape, 128).to(device)
+    train_user_infos = data["user_infos"][train_data[:, 0]]
+    n_users, n_items = data["implicit_matrix"].shape
+
+    return Ml1mDataset(train_data, train_user_infos, train_labels), n_users, n_items
+
+
+def load_model(n_users, n_items, n_occupations, embedding_dim, device):
+    model = SideFeaturesMF(n_users, n_items, n_occupations, embedding_dim).to(device)
+
+    return model
+
+
+def train(data, model, device, k=10):
+    train_data = torch.utils.data.DataLoader(
+        data,
+        batch_size=512,
+        shuffle=True,
+        # generator=torch.Generator(device=device),
+    )
 
     # Define your model
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
     num_epochs = 15
-    n_negatives = 8
 
     # Define the gradient clipping value
     max_norm = 1.0
@@ -48,22 +74,10 @@ def train(data, k=10):
     for epoch in tqdm(range(num_epochs), position=0, desc="epoch loop", leave=False):
         model.train()
         running_losses = 0
-        train_data = train_dataloader(
-            inputs,
-            batch_size=512,
-            add_user_codes=True,
-            negative_samples=negative_samples,
-            n_negatives=n_negatives,
-            device=device,
-        )
 
-        for iter_ in tqdm(train_data, position=1, desc="train loop", leave=False):
-            iter_ = iter_.squeeze(1)
-            ucodes, mcodes = iter_[:, 0], iter_[:, 1:]
-            train_labels = torch.zeros_like(mcodes, device=device, dtype=float)
-            train_labels[:, 0] = 1
+        for inputs in tqdm(train_data, position=1, desc="train loop", leave=False):
             optimizer.zero_grad()
-            loss = model.loss(ucodes, mcodes, train_labels)
+            loss = model.loss(inputs)
             loss.backward()
 
             # Perform gradient clipping
@@ -86,8 +100,11 @@ def train(data, k=10):
 
 
 def run():
-    data = load_ml1m_data()
-    train(data)
+    # device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = "cpu"
+    data, n_users, n_items = load_data()
+    model = load_model(n_users, n_items, data.n_occupations, 128, device)
+    train(data, model, device, k=10)
 
 
 if __name__ == "__main__":
