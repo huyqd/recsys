@@ -24,7 +24,7 @@ def train(model, data, device, k=10):
 
 def run():
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    device = "cpu"
+    # device = "cpu"
     torch.set_default_device(device)
     data = load_implicit_data(device)
     model = load_model(
