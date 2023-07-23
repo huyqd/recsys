@@ -32,9 +32,12 @@ def _ratings_time_rank():
     ratings[col.movie_code] = ratings[col.movie_id].cat.codes
 
     ratings = ratings.assign(
-        rank=ratings.groupby(col.user_code)[col.timestamp]
+        timestamp_rank=ratings.groupby(col.user_code)[col.timestamp]
+        .rank(method="first", ascending=True)
+        .sub(1),
+        reverse_timestamp_rank=ratings.groupby(col.user_code)[col.timestamp]
         .rank(method="first", ascending=False)
-        .sub(1)
+        .sub(1),
     )
 
     return ratings
@@ -74,9 +77,11 @@ def split_data_loo(n_test_codes=100):
     """Split data into train and test sets, with loo (leave one out, i.e. latest one) logic"""
     ratings = _ratings_time_rank()
     users = _users()
-    train_loo, test_loo = ratings.query("rank > 0"), ratings.query("rank == 0")
+    train_loo = ratings.query(f"{col.reverse_timestamp_rank} > 0")
+    test_loo = ratings.query(f"{col.reverse_timestamp_rank} == 0")
 
     # Add more test codes
+    np.random.seed(47)
     user_movie_matrix = scs.csr_matrix(
         (ratings[col.rating], (ratings[col.user_code], ratings[col.movie_code]))
     )
@@ -97,13 +102,20 @@ def split_data_loo(n_test_codes=100):
 
     # Save npz to disk
     user_codes = test_loo[[col.user_code]].to_numpy()
-    test_labels = test_loo[[col.movie_code]].to_numpy()
-    test_codes = np.hstack([test_labels, negative_codes])
+    test_true = test_loo[[col.movie_code]].to_numpy()
+    test_codes = np.hstack([test_true, negative_codes])
+    test_timestamp_rank = test_loo[col.timestamp_rank].to_numpy().astype(int)
     rating_matrix = scs.csr_matrix(
         (train_loo[col.rating], (train_loo[col.user_code], train_loo[col.movie_code]))
     )
     implicit_matrix = rating_matrix.copy()
     implicit_matrix[implicit_matrix.nonzero()] = 1
+    timestamp_matrix = scs.csr_matrix(
+        (
+            train_loo[col.timestamp_rank],
+            (train_loo[col.user_code], train_loo[col.movie_code]),
+        )
+    )
     user_infos = users[[col.user_id, col.gender, col.age, col.occupation]].to_numpy()
     npz = {
         # "rating_matrix": scs.hstack([user_codes, rating_matrix]),
@@ -111,8 +123,10 @@ def split_data_loo(n_test_codes=100):
         # "implicit_matrix": scs.hstack([user_codes, implicit_matrix]),
         "implicit_matrix": implicit_matrix,
         # "test_codes": np.hstack([user_codes, test_codes]),
+        "timestamp_matrix": timestamp_matrix,
         "test_codes": test_codes,
-        "test_labels": test_labels,
+        "test_true": test_true,
+        "test_timestamp_rank": test_timestamp_rank,
         "negative_samples": negative_samples,
         "user_infos": user_infos,
     }
@@ -167,12 +181,15 @@ class Ml1mDataset(torch.utils.data.Dataset):
 class ImplicitData:
     def __init__(self, data: dict, device: str = "cpu"):
         self.implicit_matrix = data["implicit_matrix"]
+        self.timestamp_matrix = data["timestamp_matrix"]
         self.test_codes = data["test_codes"]
-        self.test_labels = data["test_labels"]
+        self.test_true = data["test_true"]
+        self.test_timestamp_rank = data["test_timestamp_rank"]
         self.negative_samples = data["negative_samples"]
         self.user_infos = data["user_infos"]
         self.n_users, self.n_items = self.implicit_matrix.shape
         self.n_occupations = np.unique(self.user_infos[:, -1]).shape[0]
+        self.max_timestamp_rank = int(self.timestamp_matrix.data.max() + 2)
         self.device = device
 
     def create_negative_sampled_train_dataloader(
@@ -186,12 +203,30 @@ class ImplicitData:
             n_negatives,
         )
         user_occupations = self.user_infos[train_data[:, 0], -1]
+        item_timestamp_rank = (
+            np.asarray(
+                self.timestamp_matrix[
+                    train_data[:, 0],
+                    train_data[:, 1],
+                ]
+            )
+            .squeeze()
+            .astype(int)
+        )
+        length = train_data.shape[0]
+        assert (
+            length
+            == user_occupations.shape[0]
+            == item_timestamp_rank.shape[0]
+            == train_labels.shape[0]
+        )
         data_dict = {
             "user_code": train_data[:, 0],
             "item_code": train_data[:, 1:],
             "user_occupation": user_occupations,
+            "item_timestamp_rank": item_timestamp_rank,
             "label": train_labels,
-            "length": train_data.shape[0],
+            "length": length,
         }
         dataset = Ml1mDataset(data_dict)
 
@@ -203,9 +238,13 @@ class ImplicitData:
         )
 
     def create_test_dataloader(self, batch_size=1024):
+        user_codes = np.arange(self.n_users)
+        user_occupations = self.user_infos[user_codes, -1]
         data_dict = {
-            "user_code": np.arange(self.n_users),
+            "user_code": user_codes,
             "item_code": self.test_codes,
+            "user_occupation": user_occupations,
+            "item_timestamp_rank": self.test_timestamp_rank,
             "length": self.test_codes.shape[0],
         }
         dataset = Ml1mDataset(data_dict)

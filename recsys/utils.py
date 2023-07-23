@@ -14,6 +14,8 @@ class col:
     movie_code = "movie_code"
     rating = "rating"
     timestamp = "timestamp"
+    timestamp_rank = "timestamp_rank"
+    reverse_timestamp_rank = "reverse_timestamp_rank"
     title = "title"
     genre = "genre"
     gender = "gender"
@@ -62,8 +64,26 @@ def load_model(model, device, **kwargs):
     return model
 
 
+def eval_loop(model, data, test_dl, k, epoch=None, num_epochs=None, epoch_loss=None):
+    model.eval()
+    logits = []
+    with torch.no_grad():
+        for inputs in tqdm(test_dl, desc="test loop", position=2, leave=False):
+            scores = model(inputs).cpu().numpy()
+            logits.append(scores)
+        logits = np.vstack(logits)
+        y_pred = topk(logits, array=data.test_codes, k=k)
+
+    if epoch:
+        print(f"epoch [{epoch + 1}/{num_epochs}], loss: {epoch_loss:.4f}")
+    _ = compute_metrics(data.test_true, y_pred)
+
+
 def train_loop(model, data, optimizer, num_epochs, clip_norm, device="cpu", k=10):
     train_losses = []
+
+    test_dl = data.create_test_dataloader(batch_size=1024)
+    eval_loop(model, data, test_dl, k, epoch=None, num_epochs=None, epoch_loss=None)
 
     for epoch in tqdm(range(num_epochs), position=0, desc="epoch loop", leave=False):
         model.train()
@@ -85,18 +105,12 @@ def train_loop(model, data, optimizer, num_epochs, clip_norm, device="cpu", k=10
 
         epoch_loss = running_losses / len(train_dl)
 
-        model.eval()
-        with torch.no_grad():
-            scores = (
-                model(
-                    torch.arange(data.n_users).to(device),
-                    None,
-                    torch.from_numpy(data.user_infos[:, -1]).to(device),
-                )
-                .cpu()
-                .numpy()
-            )
-            y_pred = topk(scores, subset=data.test_codes, k=k)
-
-        print(f"epoch [{epoch + 1}/{num_epochs}], loss: {epoch_loss:.4f}")
-        _ = compute_metrics(data.test_labels, y_pred)
+        eval_loop(
+            model,
+            data,
+            test_dl,
+            k,
+            epoch=epoch,
+            num_epochs=num_epochs,
+            epoch_loss=epoch_loss,
+        )
