@@ -165,7 +165,7 @@ class Ml1mDataset(torch.utils.data.Dataset):
 
 
 class ImplicitData:
-    def __init__(self, data: dict):
+    def __init__(self, data: dict, device: str = "cpu"):
         self.implicit_matrix = data["implicit_matrix"]
         self.test_codes = data["test_codes"]
         self.test_labels = data["test_labels"]
@@ -173,12 +173,12 @@ class ImplicitData:
         self.user_infos = data["user_infos"]
         self.n_users, self.n_items = self.implicit_matrix.shape
         self.n_occupations = np.unique(self.user_infos[:, -1]).shape[0]
+        self.device = device
 
     def create_negative_sampled_train_dataloader(
         self,
         n_negatives=4,
         batch_size=512,
-        device="cpu",
     ):
         train_data, train_labels = create_negative_sampled_train_data(
             self.implicit_matrix,
@@ -199,10 +199,10 @@ class ImplicitData:
             dataset,
             batch_size=batch_size,
             shuffle=True,
-            generator=torch.Generator(device=device),
+            generator=torch.Generator(device=self.device),
         )
 
-    def create_test_dataloader(self, batch_size=1024, device="cpu"):
+    def create_test_dataloader(self, batch_size=1024):
         data_dict = {
             "user_code": np.arange(self.n_users),
             "item_code": self.test_codes,
@@ -213,8 +213,15 @@ class ImplicitData:
         return torch.utils.data.DataLoader(
             dataset,
             batch_size=batch_size,
-            generator=torch.Generator(device=device),
+            generator=torch.Generator(device=self.device),
         )
+
+
+def load_implicit_data(device="cpu"):
+    data = load_ml1m_data()
+    implicit_data = ImplicitData(data, device=device)
+
+    return implicit_data
 
 
 if __name__ == "__main__":
