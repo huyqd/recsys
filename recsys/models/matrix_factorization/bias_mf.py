@@ -43,7 +43,12 @@ class BiasMF(nn.Module):
 
         return outputs
 
-    def loss(self, users, items, labels):
+    def loss(self, inputs):
+        users, items, labels = (
+            inputs["user_code"],
+            inputs["item_code"],
+            inputs["label"],
+        )
         outputs = self(users, items)
 
         return F.binary_cross_entropy_with_logits(outputs, labels)
