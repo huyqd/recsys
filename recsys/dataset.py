@@ -192,6 +192,8 @@ class ImplicitData:
         self.max_timestamp_rank = int(self.timestamp_matrix.data.max() + 2)
         self.device = device
 
+        self._test_dataloader = None
+
     def create_negative_sampled_train_dataloader(
         self,
         n_negatives=4,
@@ -238,22 +240,29 @@ class ImplicitData:
         )
 
     def create_test_dataloader(self, batch_size=1024):
-        user_codes = np.arange(self.n_users)
-        user_occupations = self.user_infos[user_codes, -1]
-        data_dict = {
-            "user_code": user_codes,
-            "item_code": self.test_codes,
-            "user_occupation": user_occupations,
-            "item_timestamp_rank": self.test_timestamp_rank,
-            "length": self.test_codes.shape[0],
-        }
-        dataset = Ml1mDataset(data_dict)
+        if self._test_dataloader is None:
+            user_codes = np.arange(self.n_users)
+            user_occupations = self.user_infos[user_codes, -1]
+            data_dict = {
+                "user_code": user_codes,
+                "item_code": self.test_codes,
+                "user_occupation": user_occupations,
+                "item_timestamp_rank": self.test_timestamp_rank,
+                "length": self.test_codes.shape[0],
+            }
+            dataset = Ml1mDataset(data_dict)
 
-        return torch.utils.data.DataLoader(
-            dataset,
-            batch_size=batch_size,
-            generator=torch.Generator(device=self.device),
-        )
+            self._test_dataloader = torch.utils.data.DataLoader(
+                dataset,
+                batch_size=batch_size,
+                generator=torch.Generator(device=self.device),
+            )
+
+        return self._test_dataloader
+
+    @property
+    def test_dataloader(self):
+        return self._test_dataloader
 
 
 def load_implicit_data(device="cpu"):

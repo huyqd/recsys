@@ -1,6 +1,6 @@
 import torch
-import torch.nn.functional as F
 from torch import nn
+
 from recsys.models.matrix_factorization.vanilla_mf import VanillaMF
 
 

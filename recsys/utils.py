@@ -64,11 +64,13 @@ def load_model(model, device, **kwargs):
     return model
 
 
-def eval_loop(model, data, test_dl, k, epoch=None, num_epochs=None, epoch_loss=None):
+def eval_loop(model, data, k, epoch=None, num_epochs=None, epoch_loss=None):
     model.eval()
     logits = []
     with torch.no_grad():
-        for inputs in tqdm(test_dl, desc="test loop", position=2, leave=False):
+        for inputs in tqdm(
+            data.test_dataloader, desc="test loop", position=2, leave=False
+        ):
             scores = model(inputs).cpu().numpy()
             logits.append(scores)
         logits = np.vstack(logits)
@@ -79,11 +81,11 @@ def eval_loop(model, data, test_dl, k, epoch=None, num_epochs=None, epoch_loss=N
     _ = compute_metrics(data.test_true, y_pred)
 
 
-def train_loop(model, data, optimizer, num_epochs, clip_norm, device="cpu", k=10):
+def train_loop(model, data, optimizer, num_epochs, clip_norm, k=10):
     train_losses = []
 
-    test_dl = data.create_test_dataloader(batch_size=1024)
-    eval_loop(model, data, test_dl, k, epoch=None, num_epochs=None, epoch_loss=None)
+    data.create_test_dataloader()
+    eval_loop(model, data, k, epoch=None, num_epochs=None, epoch_loss=None)
 
     for epoch in tqdm(range(num_epochs), position=0, desc="epoch loop", leave=False):
         model.train()
@@ -108,7 +110,6 @@ def train_loop(model, data, optimizer, num_epochs, clip_norm, device="cpu", k=10
         eval_loop(
             model,
             data,
-            test_dl,
             k,
             epoch=epoch,
             num_epochs=num_epochs,
