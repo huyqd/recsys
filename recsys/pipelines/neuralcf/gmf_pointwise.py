@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.optim as optim
 from tqdm import tqdm
 
-from recsys.dataset import load_implicit_data, ImplicitData
+from recsys.dataset import load_ml1m_data, ImplicitDataOld
 from recsys.metrics import ndcg_score, hr_score
 from recsys.models.neuralcf import GMF
 
@@ -129,7 +129,7 @@ def train_gmf(data, k=10):
 
 
 def run_gmf():
-    data = load_implicit_data()
+    data = load_ml1m_data()
     train_gmf(data)
 
 

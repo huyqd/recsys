@@ -16,22 +16,24 @@ class VanillaMF(nn.Module):
             num_embeddings=n_items, embedding_dim=embedding_dim
         )
 
-    def forward(self, users, items=None):
+    def forward(self, inputs):
+        users, items = inputs["user_code"], inputs["item_code"]
         if items is None:
             items = torch.arange(self.n_items)
-            outputs = (
+            logits = (
                 self.user_embedding(users)
                 .squeeze(1)
                 .matmul(self.item_embedding(items).T)
             )
         else:
-            outputs = (
+            logits = (
                 self.user_embedding(users).unsqueeze(1).mul(self.item_embedding(items))
             ).sum(dim=-1)
 
-        return outputs
+        return logits
 
-    def loss(self, users, items, labels):
-        outputs = self(users, items)
+    def loss(self, inputs):
+        labels = inputs["label"]
+        logits = self(inputs)
 
-        return F.binary_cross_entropy_with_logits(outputs, labels)
+        return F.binary_cross_entropy_with_logits(logits, labels)

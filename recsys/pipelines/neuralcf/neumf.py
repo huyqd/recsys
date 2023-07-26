@@ -3,7 +3,7 @@ import torch
 import torch.optim as optim
 from tqdm import tqdm
 
-from recsys.dataset import load_implicit_data, train_dataloader
+from recsys.dataset import load_ml1m_data, train_dataloader
 from recsys.metrics import ndcg_score, hr_score
 from recsys.metrics import compute_metrics
 from recsys.models.neuralcf import NeuMF
@@ -95,7 +95,7 @@ def train_neumf(data, k=10):
 
 
 def run_neumf():
-    data = load_implicit_data()
+    data = load_ml1m_data()
     train_neumf(data)
 
 

@@ -1,6 +1,6 @@
 import scipy.sparse as scs
 
-from recsys.dataset import load_implicit_data
+from recsys.dataset import load_ml1m_data
 from recsys.metrics import compute_metrics
 from recsys.utils import topk
 
@@ -24,7 +24,7 @@ def train_svd(data, k=10):
 
 
 def run_svd():
-    data = load_implicit_data()
+    data = load_ml1m_data()
     train_svd(data)
 
 

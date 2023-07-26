@@ -3,13 +3,13 @@ import torch
 import torch.optim as optim
 from tqdm.notebook import tqdm
 
-from recsys.dataset import load_implicit_data
+from recsys.dataset import load_ml1m_data
 from recsys.metrics import ndcg_score, hr_score
 from recsys.models.autoencoder import MultiDAE
 
 device = "cuda"
 torch.set_default_device(device)
-data = load_implicit_data()
+data = load_ml1m_data()
 (
     inputs,
     y_true,
