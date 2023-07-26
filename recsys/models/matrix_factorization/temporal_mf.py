@@ -31,38 +31,26 @@ class TemporalMF(VanillaMF):
             inputs["user_occupation"],
             inputs["item_timestamp_rank"],
         )
+        bias_term = (
+            self.bias + self.user_bias[users].view(-1, 1) + self.item_bias[items]
+        )
+        uo_embeddings = self.user_embedding(users) + self.occupation_embedding(
+            occupations
+        )
+        temporal_term = self.user_temporal_embedding(users).mul(
+            self.temporal_embedding(timestamp_rank)
+        )
 
         if items is None:
             items = torch.arange(self.n_items)
-            outputs = (
-                self.item_bias
-                + self.user_bias[users].view(-1, 1)
-                + self.bias
-                + (
-                    self.user_embedding(users).squeeze(1)
-                    + self.occupation_embedding(occupations)
-                ).matmul(self.item_embedding(items).T)
-                + self.user_temporal_embedding(users).mul(
-                    self.temporal_embedding(timestamp_rank)
-                )
+            matrix_factorization_term = uo_embeddings.squeeze(1).matmul(
+                self.item_embedding(items).T
             )
         else:
-            outputs = (
-                self.item_bias[items]
-                + self.user_bias[users].view(-1, 1)
-                + self.bias
-                + (
-                    (
-                        self.user_embedding(users)
-                        + self.occupation_embedding(occupations)
-                    )
-                    .unsqueeze(1)
-                    .mul(self.item_embedding(items))
-                    .sum(dim=-1)
-                )
-                + self.user_temporal_embedding(users)
-                .mul(self.temporal_embedding(timestamp_rank))
-                .sum(dim=-1, keepdim=True)
+            matrix_factorization_term = (
+                uo_embeddings.unsqueeze(1).mul(self.item_embedding(items)).sum(dim=-1)
             )
+            temporal_term = temporal_term.sum(dim=-1, keepdim=True)
+        logits = bias_term + matrix_factorization_term + temporal_term
 
-        return outputs
+        return logits
