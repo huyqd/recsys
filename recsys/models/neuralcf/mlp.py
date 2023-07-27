@@ -35,7 +35,7 @@ class MLP(nn.Module):
         mlp = mlp[:-2]  # remove relu and dropout for the last layer
         self.mlp = nn.Sequential(*mlp)
 
-        # self.init_weight()
+        self.init_weight()
 
     def init_weight(self):
         nn.init.normal_(self.user_embedding.weight, std=0.01)
