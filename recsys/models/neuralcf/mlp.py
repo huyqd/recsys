@@ -49,16 +49,18 @@ class MLP(nn.Module):
             if isinstance(m, nn.Linear) and m.bias is not None:
                 m.bias.data.zero_()
 
-    def forward(self, users, items, pointwise=False):
+    def forward(self, inputs, pointwise=False):
+        users, items = inputs["user_code"], inputs["item_code"]
         if pointwise:
             return self._forward_pointwise(users, items)
         else:
             return self._forward(users, items)
 
-    def loss(self, users, items, labels, pointwise=False):
-        outputs = self.forward(users, items, pointwise)
+    def loss(self, inputs, pointwise=False):
+        labels = inputs["label"]
+        logits = self.forward(inputs, pointwise)
 
-        return F.binary_cross_entropy_with_logits(outputs, labels)
+        return F.binary_cross_entropy_with_logits(logits, labels)
 
     def _forward(self, users, items=None):
         items = items if items is not None else torch.arange(self.n_items)

@@ -2,7 +2,7 @@ import torch
 from torch import optim as optim
 
 from recsys.dataset import load_implicit_data
-from recsys.models.neuralcf import MLP
+from recsys.models.neuralcf import DeepFactorizationMachine
 from recsys.utils import load_model, train_loop
 
 
@@ -16,14 +16,15 @@ def train(model, data, k=10):
 
 def run():
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    # device = "cpu"
     torch.set_default_device(device)
-    data = load_implicit_data(device, train_batch_size=512, test_batch_size=1024)
+    data = load_implicit_data(device)
     model = load_model(
-        MLP,
+        DeepFactorizationMachine,
         device,
         n_users=data.n_users,
         n_items=data.n_items,
+        n_occupations=data.n_occupations,
+        max_timestamp_rank=data.max_timestamp_rank,
         embedding_dim=128,
     )
     train(model, data, k=10)
