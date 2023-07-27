@@ -2,7 +2,7 @@ import torch
 from torch import optim as optim
 
 from recsys.dataset import load_implicit_data
-from recsys.models.neuralcf import MLP
+from recsys.models.neuralcf import WidenDeep
 from recsys.utils import load_model, train_loop
 
 
@@ -20,10 +20,12 @@ def run():
     torch.set_default_device(device)
     data = load_implicit_data(device, train_batch_size=512, test_batch_size=1024)
     model = load_model(
-        MLP,
+        WidenDeep,
         device,
         n_users=data.n_users,
         n_items=data.n_items,
+        n_occupations=data.n_occupations,
+        max_timestamp_rank=data.max_timestamp_rank,
         embedding_dim=128,
     )
     train(model, data, k=10)

@@ -4,6 +4,7 @@ import scipy.sparse as scs
 import torch
 
 from recsys.utils import col, path
+from sklearn.preprocessing import OrdinalEncoder
 
 
 def _ratings_time_rank():
@@ -71,6 +72,28 @@ def _users():
     users[col.gender] = users[col.gender].cat.codes
 
     return users
+
+
+def _movies():
+    movies = pd.read_csv(
+        path.ml1m_movies,
+        sep="::",
+        header=None,
+        names=[
+            col.movie_id,
+            col.title,
+            col.genre,
+        ],
+        dtype={
+            "movie_id": np.int32,
+            "title": str,
+            "genre": str,
+        },
+        engine="python",
+        encoding="ISO-8859-1",
+    )
+
+    return movies
 
 
 def split_data_loo(n_test_codes=100):
@@ -179,7 +202,13 @@ class Ml1mDataset(torch.utils.data.Dataset):
 
 
 class ImplicitData:
-    def __init__(self, data: dict, device: str = "cpu"):
+    def __init__(
+        self,
+        data: dict,
+        device: str = "cpu",
+        train_batch_size: int = 512,
+        test_batch_size: int = 1024,
+    ):
         self.implicit_matrix = data["implicit_matrix"]
         self.timestamp_matrix = data["timestamp_matrix"]
         self.test_codes = data["test_codes"]
@@ -191,13 +220,14 @@ class ImplicitData:
         self.n_occupations = np.unique(self.user_infos[:, -1]).shape[0]
         self.max_timestamp_rank = int(self.timestamp_matrix.data.max() + 2)
         self.device = device
+        self.train_batch_size = train_batch_size
+        self.test_batch_size = test_batch_size
 
         self._test_dataloader = None
 
     def create_negative_sampled_train_dataloader(
         self,
         n_negatives=4,
-        batch_size=512,
     ):
         train_data, train_labels = create_negative_sampled_train_data(
             self.implicit_matrix,
@@ -234,12 +264,12 @@ class ImplicitData:
 
         return torch.utils.data.DataLoader(
             dataset,
-            batch_size=batch_size,
+            batch_size=self.train_batch_size,
             shuffle=True,
             generator=torch.Generator(device=self.device),
         )
 
-    def create_test_dataloader(self, batch_size=1024):
+    def create_test_dataloader(self):
         if self._test_dataloader is None:
             user_codes = np.arange(self.n_users)
             user_occupations = self.user_infos[user_codes, -1]
@@ -254,7 +284,7 @@ class ImplicitData:
 
             self._test_dataloader = torch.utils.data.DataLoader(
                 dataset,
-                batch_size=batch_size,
+                batch_size=self.test_batch_size,
                 generator=torch.Generator(device=self.device),
             )
 
@@ -265,9 +295,18 @@ class ImplicitData:
         return self._test_dataloader
 
 
-def load_implicit_data(device="cpu"):
+def load_implicit_data(
+    device: str = "cpu",
+    train_batch_size: int = 512,
+    test_batch_size: int = 1024,
+):
     data = load_ml1m_data()
-    implicit_data = ImplicitData(data, device=device)
+    implicit_data = ImplicitData(
+        data,
+        device=device,
+        train_batch_size=train_batch_size,
+        test_batch_size=test_batch_size,
+    )
 
     return implicit_data
 
